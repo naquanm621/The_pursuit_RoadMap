@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme {
+  --color-brand-bg: #0a0b1e;
+  --color-brand-panel: #161837;
+}
+
+:root {
+  background-color: #0a0b1e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0a0b1e;
+  color: white;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
