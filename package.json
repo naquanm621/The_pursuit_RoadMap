@@ -1,0 +1,12 @@
+{
+  "name": "pursuit-roadmap",
+  "version": "1.0.0",
+  "scripts": {
+    "install": "cd backend && npm ci",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

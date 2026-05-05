@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as fs from 'fs';
 import dotenv from 'dotenv';
+import * as duckDuckScrape from 'duck-duck-scrape';
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export class GeminiService {
@@ -82,24 +83,38 @@ export class GeminiService {
         }
     }
     /**
+     * Search using DuckDuckGo (free, no API key needed)
+     */
+    static async searchDuckDuckGo(query) {
+        try {
+            const searchResults = await duckDuckScrape.search(query, {
+                safeSearch: duckDuckScrape.SafeSearchType.STRICT
+            });
+            // Handle both array and object with results property
+            const results = Array.isArray(searchResults) ? searchResults : searchResults.results || [];
+            return results.slice(0, 5).map((r) => `${r.title}: ${r.description}`).join('\n');
+        }
+        catch (error) {
+            console.error('DuckDuckGo search error:', error);
+            return '';
+        }
+    }
+    /**
      * Generates a dynamic career path with mesh coordinates.
      */
     static async getCombinedCareerPath(skills, gaps = [], trajectoryName = "AI Explorer", existingTitles = []) {
         try {
-            return await this.runWithModelFallback('gemini-2.0-flash', async (model) => {
-                // Enable Google Search Grounding for the primary model
-                const modelWithSearch = genAI.getGenerativeModel({
-                    model: model.model,
-                    tools: [{ googleSearch: {} }]
-                });
-                const prompt = `Given these achieved skills: [${skills.join(', ')}] and these MISSED skills: [${gaps.join(', ')}],
+            // Use DuckDuckGo for free web search (no API key needed)
+            const searchQuery = `${trajectoryName} AI job careers 2025 Coursera Udemy courses`;
+            const searchResults = await this.searchDuckDuckGo(searchQuery);
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const prompt = `Given these achieved skills: [${skills.join(', ')}] and these MISSED skills: [${gaps.join(', ')}],
         and the user's current trajectory: "${trajectoryName}".
         
         EXISTING CAREERS (DO NOT REPEAT THESE): [${existingTitles.join(', ')}]
         
-        Use GOOGLE SEARCH to find:
-        1. Real, trending AI-native job titles for May 2026.
-        2. Top-rated online courses or certifications (Coursera, Udemy, etc.) relevant to these roles.
+        Use this web search data to inform your response:
+        ${searchResults}
         
         Generate 3 UNIQUE career paths that are DIFFERENT from the existing ones.
         Return ONLY a JSON array of objects with this structure:
@@ -118,13 +133,12 @@ export class GeminiService {
           }
         ]
         Ensure 'y' is a number between 10 and 90, spread them out.`;
-                const result = await modelWithSearch.generateContent(prompt);
-                const text = result.response.text();
-                const jsonMatch = text.match(/\[[\s\S]*\]/);
-                if (!jsonMatch)
-                    throw new Error("Failed to extract JSON from AI response");
-                return JSON.parse(jsonMatch[0]);
-            });
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+            const jsonMatch = text.match(/\[[\s\S]*\]/);
+            if (!jsonMatch)
+                throw new Error("Failed to extract JSON from AI response");
+            return JSON.parse(jsonMatch[0]);
         }
         catch (error) {
             console.error('Gemini API Error, using enhanced fallbacks:', error.message);

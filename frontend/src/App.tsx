@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Zap, Brain, Code, Database, Cpu, Globe, Rocket, Terminal, Layers, Star, ExternalLink, Briefcase, Search, GraduationCap, Plus, X, ArrowRight, Eye, EyeOff, Lock, User, Send, MessageSquare, History, LogOut } from 'lucide-react';
+import { Sparkles, Zap, Brain, Code, Database, Cpu, Globe, Rocket, Terminal, Layers, Star, ExternalLink, Briefcase, Search, GraduationCap, Plus, X, ArrowRight, Eye, EyeOff, Lock, User, Send, MessageSquare, History, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Week {
   id: number;
@@ -23,6 +23,19 @@ interface CareerPath {
   searchQuery?: string;
   parentId?: string | number; // To track mesh connections
   courses?: { title: string; url: string; platform: string }[]; // For training suggestions
+  requiredSkills?: string[]; // Skills needed to unlock this path
+  connectedWeekIds?: number[]; // Which weeks connect to this path for unlimited branching
+  goldenSkills?: string[]; // Skills NOT in curriculum - the golden path unique skills
+  goldenTraining?: { skill: string; course: string; platform: string; url: string }[]; // Training for golden skills
+}
+
+interface GoldenSkillNode {
+  id: string;
+  name: string;
+  parentPathId: string;
+  position: { x: number; y: number };
+  training?: { course: string; platform: string; url: string };
+  isCompleted?: boolean;
 }
 
 const weeks: Week[] = [
@@ -91,10 +104,10 @@ const staticPaths: CareerPath[] = [
 ];
 
 const predictionData = [
-  { weeks: 2, likelihood: '5%', status: 'Novice' },
-  { weeks: 4, likelihood: '20%', status: 'Apprentice' },
-  { weeks: 6, likelihood: '55%', status: 'Job Ready' },
-  { weeks: 8, likelihood: '85%', status: 'Professional' },
+  { weeks: 2, readiness: '5%', status: 'Novice' },
+  { weeks: 4, readiness: '20%', status: 'Apprentice' },
+  { weeks: 6, readiness: '55%', status: 'Job Ready' },
+  { weeks: 8, readiness: '85%', status: 'Professional' },
 ];
 
 type AppView = 'login' | 'onboarding' | 'roadmap' | 'log';
@@ -104,9 +117,35 @@ export default function App() {
   const [completedWeeks, setCompletedWeeks] = useState<number[]>([]);
   const [aiPaths, setAiPaths] = useState<CareerPath[]>([]);
   const [discoveredNodes, setDiscoveredNodes] = useState<CareerPath[]>([]);
+  const [goldenSkillNodes, setGoldenSkillNodes] = useState<GoldenSkillNode[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mapScale, setMapScale] = useState(1);
   const [lastCombo, setLastCombo] = useState("");
+  
+  // Keyboard zoom controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setMapScale(prev => Math.min(prev + 0.1, 2));
+        } else if (e.key === '-') {
+          e.preventDefault();
+          setMapScale(prev => Math.max(prev - 0.1, 0.5));
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setMapScale(1);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const [hoveredWeek, setHoveredWeek] = useState<number | null>(null);
+  const [hoveredPath, setHoveredPath] = useState<CareerPath | null>(null);
+  const [isTrajectoryPanelOpen, setIsTrajectoryPanelOpen] = useState(true);
+  const [showGoldStars, setShowGoldStars] = useState(true);
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   
   // Trajectory Engine State
   const [weight, setWeight] = useState(1);
@@ -154,7 +193,7 @@ export default function App() {
       const curriculumSkills = weeks.filter(w => completedWeeks.includes(w.id)).map(w => w.skill);
       const allSkills = [...previousSkills, ...curriculumSkills];
 
-      const response = await fetch('http://localhost:3000/api/chat', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -194,7 +233,7 @@ export default function App() {
       const allSkills = [...previousSkills, ...curriculumSkills];
       
       try {
-        const response = await fetch('http://localhost:3000/api/trajectory', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/trajectory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ skills: allSkills }),
@@ -233,7 +272,7 @@ export default function App() {
               trajectoryContext = `${lastNode.name} Specialist`;
             }
 
-            const response = await fetch('http://localhost:3000/api/career-path', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/career-path`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -255,12 +294,16 @@ export default function App() {
                 requiredWeeks: [...completedWeeks],
                 additionalSkills: [item.bridgeSuggestion, item.leapSuggestion],
                 color: '#fbbf24',
-                endpoint: { x: item.x || 92, y: item.y || (10 + idx * 25) },
+                endpoint: { x: Math.min(item.x || 92, 95), y: Math.max(15, Math.min(85, item.y || (15 + idx * 7))) },
                 isAI: true,
                 description: item.description,
                 searchQuery: item.indeedQuery || item.careerTitle,
                 parentId: lastNode ? lastNode.id : lastWeekId,
-                courses: item.topCourses || []
+                courses: item.topCourses || [],
+                requiredSkills: item.requiredSkills || [],
+                connectedWeekIds: item.connectedWeekIds || completedWeeks,
+                goldenSkills: item.goldenSkills || [],
+                goldenTraining: item.goldenTraining || []
               }));
               setAiPaths(newPaths);
             }
@@ -302,7 +345,7 @@ export default function App() {
 
   const currentPrediction = useMemo(() => {
     const count = completedWeeks.length;
-    return [...predictionData].reverse().find(p => count >= p.weeks) || { likelihood: '0%', status: 'Learning' };
+    return [...predictionData].reverse().find(p => count >= p.weeks) || { readiness: '0%', status: 'Learning' };
   }, [completedWeeks]);
 
   // LOGIN VIEW
@@ -473,50 +516,253 @@ export default function App() {
           </div>
         </div>
         
-        <div className="bg-indigo-900/20 border border-indigo-500/30 p-2 md:p-3 rounded-lg backdrop-blur-md flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">LIKELIHOOD</div>
-            <div className="text-xl md:text-2xl font-black text-white leading-none">{currentPrediction.likelihood}</div>
-          </div>
-          <div className="h-8 w-px bg-indigo-500/30"></div>
-          <div className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded uppercase tracking-tighter">
-            {currentPrediction.status}
+        <div className="flex items-center gap-2">
+          {/* Gold Stars Toggle */}
+          <button
+            onClick={() => setShowGoldStars(!showGoldStars)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${showGoldStars ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+            title={showGoldStars ? "Hide Gold Stars" : "Show Gold Stars"}
+          >
+            <Star size={14} className={showGoldStars ? "fill-amber-400" : ""} />
+            <span className="text-[9px] font-black uppercase tracking-wider hidden md:inline">{showGoldStars ? 'Hide' : 'Show'}</span>
+          </button>
+          
+          <div className="bg-indigo-900/20 border border-indigo-500/30 p-2 md:p-3 rounded-lg backdrop-blur-md flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">Role Readiness</div>
+              <div className="text-xl md:text-2xl font-black text-white leading-none">{currentPrediction.readiness}</div>
+            </div>
+            <div className="h-8 w-px bg-indigo-500/30"></div>
+            <div className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded uppercase tracking-tighter">
+              {currentPrediction.status}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex flex-grow gap-4 min-h-0">
-        <div className="relative flex-grow border border-blue-500/20 rounded-xl bg-black/40 backdrop-blur-sm overflow-x-auto overflow-y-hidden custom-scrollbar">
+        <div className="relative flex-grow border border-blue-500/20 rounded-xl bg-black/40 backdrop-blur-sm overflow-auto custom-scrollbar scroll-smooth">
+          {/* Zoom Controls */}
+          <div className="fixed bottom-6 left-6 z-50 flex flex-col gap-2">
+            <button 
+              onClick={() => setMapScale(prev => Math.min(prev + 0.1, 2))}
+              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg"
+            >
+              <span className="text-lg font-bold text-blue-400">+</span>
+            </button>
+            <button 
+              onClick={() => setMapScale(prev => Math.max(prev - 0.1, 0.5))}
+              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg"
+            >
+              <span className="text-lg font-bold text-blue-400">-</span>
+            </button>
+            <button 
+              onClick={() => setMapScale(1)}
+              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg text-[9px] font-bold text-blue-400"
+            >
+              100%
+            </button>
+          </div>
+          
           <div 
-            className="relative h-full min-h-[500px] transition-all duration-1000" 
-            style={{ minWidth: `${Math.max(100, (discoveredNodes.length / 2) * 40 + 100)}%` }}
+            className="relative h-full min-h-[600px] transition-transform duration-300 ease-out origin-top-left" 
+            style={{ 
+              minWidth: `${Math.max(100, (discoveredNodes.length / 2) * 40 + 100)}%`,
+              transform: `scale(${mapScale})`,
+              width: `${100 / mapScale}%`,
+              height: `${100 / mapScale}%`
+            }}
           >
-            {/* Skill Review Banner Overlay */}
+            {/* Skill Review Banner Overlay - Follows mouse, doesn't stick */}
             <AnimatePresence>
               {hoveredWeek !== null && (
-                <div className="sticky left-1/2 -translate-x-1/2 z-[60] top-4 pointer-events-none">
-                  <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-[300px]">
-                    <div className="bg-slate-900/95 border border-blue-500/50 p-4 rounded-xl shadow-2xl backdrop-blur-xl">
-                      <div className="flex items-center gap-2 mb-2"><GraduationCap className="text-blue-400" size={18} /><h3 className="text-xs font-black text-white uppercase tracking-wider">Skill Review: {weeks.find(w => w.id === hoveredWeek)?.title}</h3></div>
-                      <div className="space-y-1.5">{weeks.find(w => w.id === hoveredWeek)?.review.map((item, i) => (<div key={i} className="flex items-center gap-2 text-[10px] text-slate-300"><div className="w-1 h-1 rounded-full bg-blue-500" />{item}</div>))}</div>
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="absolute z-[100] pointer-events-none"
+                  style={{ 
+                    left: `${weeks.find(w => w.id === hoveredWeek)?.position.x}%`,
+                    top: `${Math.max(5, (weeks.find(w => w.id === hoveredWeek)?.position.y || 50) - 25)}%`,
+                    transform: 'translate(-50%, -100%)'
+                  }}
+                >
+                  <div className="w-[300px]">
+                    <div className="bg-slate-900/98 border-2 border-blue-500/60 p-4 rounded-xl shadow-[0_0_40px_rgba(59,130,246,0.3)] backdrop-blur-xl">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="bg-blue-500/20 p-2 rounded-lg">
+                          <GraduationCap className="text-blue-400" size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-white uppercase tracking-wider">{weeks.find(w => w.id === hoveredWeek)?.title}</h3>
+                          <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Skill Review</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {weeks.find(w => w.id === hoveredWeek)?.review.map((item, i) => (
+                          <div key={i} className="flex items-start gap-3 text-[11px] text-slate-300 bg-black/30 p-2 rounded-lg">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 flex-shrink-0" />
+                            <span className="leading-relaxed">{item}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </motion.div>
-                </div>
+                  </div>
+                </motion.div>
               )}
+              
+              {hoveredPath !== null && (() => {
+                const isDiscoveredHover = discoveredNodes.find(d => d.id === hoveredPath.id);
+                const hoverIndex = discoveredNodes.findIndex(d => d.id === hoveredPath.id);
+                const hRow = Math.floor(hoverIndex / 3);
+                const hCol = hoverIndex % 3;
+                const bannerX = isDiscoveredHover ? (88 + hCol * 4) : Math.min(hoveredPath.endpoint.x, 80);
+                const bannerY = isDiscoveredHover ? (15 + hRow * 10) : hoveredPath.endpoint.y;
+                return (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="absolute z-[100] pointer-events-none"
+                  style={{ 
+                    left: `${bannerX}%`,
+                    top: `${Math.max(5, bannerY - 15)}%`,
+                    transform: 'translate(-50%, -100%)'
+                  }}
+                >
+                  <div className="w-[280px]">
+                    <div className="bg-slate-900/98 border-2 border-amber-500/60 p-4 rounded-xl shadow-[0_0_40px_rgba(251,191,36,0.3)] backdrop-blur-xl">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="bg-amber-500/20 p-2 rounded-lg">
+                          <Star className="text-amber-400" size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-white uppercase tracking-wider">{hoveredPath.name}</h3>
+                          <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">Trajectory Path</p>
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-slate-300 mb-3 leading-relaxed">{hoveredPath.description}</div>
+                      
+                      {hoveredPath.requiredSkills && hoveredPath.requiredSkills.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-[9px] text-amber-400/80 uppercase font-bold mb-1">Required Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {hoveredPath.requiredSkills.map((skill, i) => (
+                              <span key={i} className="text-[8px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded uppercase">{skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {hoveredPath.goldenSkills && hoveredPath.goldenSkills.length > 0 && (
+                        <div>
+                          <p className="text-[9px] text-yellow-400/80 uppercase font-bold mb-1">Golden Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {hoveredPath.goldenSkills.map((skill, i) => (
+                              <span key={i} className="text-[8px] bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded uppercase">★ {skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="mt-3 pt-2 border-t border-slate-700/50 text-[9px] text-slate-400 italic">
+                        Click to discover this path
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );})()}
             </AnimatePresence>
 
             <svg className="absolute inset-0 size-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <defs><filter id="glow"><feGaussianBlur stdDeviation="1" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="roadGradient"><stop offset="0%" stopColor="#3b82f6"/><stop offset="100%" stopColor="#8b5cf6"/></linearGradient></defs>
+              <defs>
+                {/* Static gradient - no animation */}
+                <linearGradient id="roadGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#3b82f6"/>
+                  <stop offset="50%" stopColor="#818cf8"/>
+                  <stop offset="100%" stopColor="#8b5cf6"/>
+                </linearGradient>
+                
+                {/* Gold gradient for golden paths */}
+                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#fbbf24"/>
+                  <stop offset="50%" stopColor="#f59e0b"/>
+                  <stop offset="100%" stopColor="#fbbf24"/>
+                </linearGradient>
+              </defs>
               <AnimatePresence>
+                {/* GOLDEN MASTER PATH - Only shows when ALL weeks 1-8 are completed */}
+                {completedWeeks.length >= 8 && weeks.map((week, idx) => {
+                  if (idx === 0) return null;
+                  const from = weeks[idx - 1];
+                  const to = week;
+                  
+                  return (
+                    <motion.line 
+                      key={`golden-path-${from.id}-${to.id}`} 
+                      x1={`${from.position.x}%`} y1={`${from.position.y}%`} 
+                      x2={`${to.position.x}%`} y2={`${to.position.y}%`} 
+                      stroke="url(#goldGradient)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0, opacity: 0 }} 
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.5, delay: idx * 0.05 }}
+                    />
+                  );
+                })}
+
+                {/* User's actual completion path (blue) */}
                 {completedWeeks.map((weekId, idx) => {
                   if (idx === 0) return null;
                   const from = weeks.find(w => w.id === completedWeeks[idx - 1]);
                   const to = weeks.find(w => w.id === weekId);
                   if (!from || !to) return null;
-                  return (<motion.line key={`order-road-${from.id}-${to.id}`} x1={`${from.position.x}%`} y1={`${from.position.y}%`} x2={`${to.position.x}%`} y2={`${to.position.y}%`} stroke="url(#roadGradient)" strokeWidth="0.8" filter="url(#glow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} />);
+                  return (
+                    <motion.line 
+                      key={`order-road-${from.id}-${to.id}`} 
+                      x1={`${from.position.x}%`} y1={`${from.position.y}%`} 
+                      x2={`${to.position.x}%`} y2={`${to.position.y}%`} 
+                      stroke="url(#roadGradient)" 
+                      strokeWidth="1.5" 
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0, opacity: 0 }} 
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    />
+                  );
                 })}
+                {/* Lines connecting discovered nodes to each other */}
+                {showGoldStars && discoveredNodes.map((node, idx) => {
+                  if (idx === 0) return null;
+                  const prevNode = discoveredNodes[idx - 1];
+                  const row = Math.floor(idx / 3);
+                  const col = idx % 3;
+                  const prevRow = Math.floor((idx - 1) / 3);
+                  const prevCol = (idx - 1) % 3;
+                  const fromX = 88 + prevCol * 4;
+                  const fromY = 15 + prevRow * 10;
+                  const toX = 88 + col * 4;
+                  const toY = 15 + row * 10;
+                  
+                  return (
+                    <motion.line
+                      key={`discovered-link-${node.id}`}
+                      x1={`${fromX}%`} y1={`${fromY}%`}
+                      x2={`${toX}%`} y2={`${toY}%`}
+                      stroke="url(#goldGradient)"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                      strokeDasharray="4,2"
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    />
+                  );
+                })}
+                
                 {/* Lines to AI Paths and Discovered Nodes */}
-                {[...discoveredNodes, ...aiPaths].map((path) => {
+                {showGoldStars && [...discoveredNodes, ...aiPaths].map((path) => {
                   const parent = weeks.find(w => w.id === path.parentId) || discoveredNodes.find(d => d.id === path.parentId);
                   if (!parent) return null;
                   
@@ -524,23 +770,50 @@ export default function App() {
                   const fromX = (parent as any).position ? (parent as any).position.x : (parent as any).endpoint.x;
                   const fromY = (parent as any).position ? (parent as any).position.y : (parent as any).endpoint.y;
                   
-                  // For Discovered nodes, use their calculated xPos
+                  // For Discovered nodes, use wrapped positioning to stay on screen
                   const isDiscovered = discoveredNodes.find(d => d.id === path.id);
                   const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                  const toX = isDiscovered ? (92 + (discoveryIndex + 1) * 15) : path.endpoint.x;
-                  const toY = path.endpoint.y;
+                  const row = Math.floor(discoveryIndex / 3);
+                  const col = discoveryIndex % 3;
+                  // Position discovered nodes further right (88-98%) to avoid overlap with curriculum weeks
+                  const toX = isDiscovered ? (88 + col * 4) : Math.min(path.endpoint.x, 80);
+                  const toY = isDiscovered ? (15 + row * 10) : path.endpoint.y;
 
                   return (
-                    <motion.line 
-                      key={`ai-road-${path.id}`} 
-                      x1={`${fromX}%`} y1={`${fromY}%`} 
-                      x2={`${toX}%`} y2={`${toY}%`} 
-                      stroke="#fbbf2466" 
-                      strokeWidth="0.5" 
-                      strokeDasharray="2,2"
-                      initial={{ pathLength: 0 }} 
-                      animate={{ pathLength: 1 }} 
-                    />
+                    <g key={`ai-road-group-${path.id}`}>
+                      {/* Main connection line from parent to path */}
+                      <motion.line 
+                        key={`ai-road-${path.id}`} 
+                        x1={`${fromX}%`} y1={`${fromY}%`} 
+                        x2={`${toX}%`} y2={`${toY}%`} 
+                        stroke={isDiscovered ? "url(#goldGradient)" : "#fbbf2480"}
+                        strokeWidth={isDiscovered ? "1.5" : "1"}
+                        strokeLinecap="round"
+                        strokeDasharray={isDiscovered ? "0" : "4,2"}
+                        initial={{ pathLength: 0, opacity: 0 }} 
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      />
+                      {/* Connection lines from path to its connected weeks (unlimited branching) */}
+                      {path.connectedWeekIds?.map((weekId, idx) => {
+                        const week = weeks.find(w => w.id === weekId);
+                        if (!week) return null;
+                        return (
+                          <motion.line
+                            key={`path-week-${path.id}-${weekId}`}
+                            x1={`${toX}%`} y1={`${toY}%`}
+                            x2={`${week.position.x}%`} y2={`${week.position.y}%`}
+                            stroke={isDiscovered ? "url(#goldGradient)" : "#60a5fa40"}
+                            strokeWidth={isDiscovered ? "1" : "0.5"}
+                            strokeLinecap="round"
+                            strokeDasharray={isDiscovered ? "3,2" : "2,4"}
+                            initial={{ opacity: 0, pathLength: 0 }}
+                            animate={{ opacity: isDiscovered ? 0.8 : 0.3, pathLength: 1 }}
+                            transition={{ delay: idx * 0.1, duration: 0.5 }}
+                          />
+                        );
+                      })}
+                    </g>
                   );
                 })}
               </AnimatePresence>
@@ -551,49 +824,214 @@ export default function App() {
               const Icon = week.icon;
               const completionOrder = completedWeeks.indexOf(week.id);
               return (
-                <motion.button key={week.id} onClick={() => toggleWeek(week.id)} onMouseEnter={() => setHoveredWeek(week.id)} onMouseLeave={() => setHoveredWeek(null)} className="absolute transform -translate-x-1/2 -translate-y-1/2" style={{ left: `${week.position.x}%`, top: `${week.position.y}%` }} whileHover={{ scale: 1.15 }}>
-                  <div className={`w-8 h-8 md:w-12 md:h-12 rounded-full border flex items-center justify-center transition-all duration-500 ${isCompleted ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-900 border-slate-700'}`}>
+                <motion.button 
+                  key={week.id} 
+                  onClick={() => toggleWeek(week.id)} 
+                  onMouseEnter={() => setHoveredWeek(week.id)} 
+                  onMouseLeave={() => setHoveredWeek(null)} 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2" 
+                  style={{ left: `${week.position.x}%`, top: `${week.position.y}%` }} 
+                  whileHover={{ scale: 1.2, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <div 
+                    className={`w-8 h-8 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${isCompleted ? 'bg-blue-600 border-blue-400' : 'bg-slate-800 border-slate-600'}`}
+                  >
                     <Icon size={16} className={isCompleted ? 'text-white' : 'text-slate-500'} />
-                    {isCompleted && (<div className="absolute -top-2 -right-2 bg-blue-400 text-black text-[7px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-black shadow-lg">{completionOrder + 1}</div>)}
+                    {isCompleted && (
+                      <div className="absolute -top-2 -right-2 bg-blue-400 text-black text-[7px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">
+                        {completionOrder + 1}
+                      </div>
+                    )}
                   </div>
-                  <div className="absolute top-full mt-1 text-[7px] md:text-[9px] font-bold text-slate-400 whitespace-nowrap bg-black/60 px-1 rounded max-w-[80px] overflow-hidden text-ellipsis">{week.skill}</div>
+                  <div className={`absolute top-full mt-1 text-[7px] md:text-[9px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded ${isCompleted ? 'text-blue-200 bg-black/80 border border-blue-500/50' : 'text-slate-400 bg-black/60 border border-slate-700'} max-w-[100px] overflow-hidden text-ellipsis`}>
+                    {week.skill}
+                  </div>
                 </motion.button>
               );
             })}
 
+            {/* GOLDEN SKILL NODES - Visual bubbles for golden path skills */}
+            <svg className="absolute inset-0 size-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <AnimatePresence>
+                {/* Golden paths connecting skill nodes to their parent path */}
+                {goldenSkillNodes.map((node, idx) => {
+                  const parentPath = discoveredNodes.find(p => p.id === node.parentPathId);
+                  if (!parentPath) return null;
+                  
+                  return (
+                    <motion.line
+                      key={`golden-line-${node.id}`}
+                      x1={`${parentPath.endpoint.x}%`} y1={`${parentPath.endpoint.y}%`}
+                      x2={`${node.position.x}%`} y2={`${node.position.y}%`}
+                      stroke={node.isCompleted ? "url(#goldGradient)" : "#fbbf2460"}
+                      strokeWidth={node.isCompleted ? "1.2" : "0.6"}
+                      strokeLinecap="round"
+                      strokeDasharray={node.isCompleted ? "0" : "4,2"}
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    />
+                  );
+                })}
+                
+                {/* Golden paths connecting sequential skill nodes */}
+                {goldenSkillNodes.map((node, idx) => {
+                  if (idx === 0) return null;
+                  const prevNode = goldenSkillNodes[idx - 1];
+                  if (prevNode.parentPathId !== node.parentPathId) return null;
+                  
+                  return (
+                    <motion.line
+                      key={`golden-skill-line-${node.id}`}
+                      x1={`${prevNode.position.x}%`} y1={`${prevNode.position.y}%`}
+                      x2={`${node.position.x}%`} y2={`${node.position.y}%`}
+                      stroke="url(#goldGradient)"
+                      strokeWidth="1"
+                      strokeLinecap="round"
+                      strokeDasharray="3,3"
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    />
+                  );
+                })}
+              </AnimatePresence>
+            </svg>
+
+            {/* Golden Skill Node Bubbles */}
             <AnimatePresence>
-              {[...discoveredNodes, ...aiPaths].map((path) => {
-                const isDiscovered = discoveredNodes.find(d => d.id === path.id);
+              {goldenSkillNodes.map((node, idx) => (
+                <motion.button
+                  key={node.id}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-40"
+                  style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    setGoldenSkillNodes(prev => prev.map(n => 
+                      n.id === node.id ? { ...n, isCompleted: !n.isCompleted } : n
+                    ));
+                  }}
+                >
+                  <div 
+                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center"
+                    style={{
+                      borderColor: node.isCompleted ? '#fbbf24' : 'rgba(245,158,11,0.5)',
+                      backgroundColor: node.isCompleted ? '#fbbf24' : 'rgba(17,24,39,0.9)'
+                    }}
+                  >
+                    <span className="text-[9px] md:text-[11px]">★</span>
+                  </div>
+                  <div className={`absolute top-full mt-1 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded max-w-[60px] overflow-hidden text-ellipsis ${node.isCompleted ? 'text-amber-300 bg-black/80 border border-amber-500/50' : 'text-slate-400 bg-black/60 border border-slate-700'}`}>
+                    {node.name}
+                  </div>
+                </motion.button>
+              ))}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {/* AI Paths (undiscovered) - always visible */}
+              {aiPaths.map((path) => {
+                return (
+                  <motion.button 
+                    key={path.id} 
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50" 
+                    style={{ left: `${Math.min(path.endpoint.x, 80)}%`, top: `${path.endpoint.y}%` }} 
+                    initial={{ scale: 0, opacity: 0 }} 
+                    animate={{ scale: 1, opacity: 1 }}
+                    whileHover={{ scale: 1.3, rotate: 10, y: -3 }}
+                    whileTap={{ scale: 0.9 }}
+                    onMouseEnter={() => setHoveredPath(path)}
+                    onMouseLeave={() => setHoveredPath(null)}
+                    onClick={() => {
+                      // First discovery - add to discovered nodes
+                      setDiscoveredNodes(prev => [...prev, path]);
+                      setAiPaths([]);
+                      setLastCombo(""); 
+                      
+                      // Create GOLDEN SKILL NODES on the map - like week bubbles but gold
+                      if (path.goldenSkills && path.goldenSkills.length > 0) {
+                        const newGoldenNodes: GoldenSkillNode[] = path.goldenSkills.map((skill, idx) => ({
+                          id: `golden-${path.id}-${idx}`,
+                          name: skill,
+                          parentPathId: path.id,
+                          position: { 
+                            // Position in an arc around the path endpoint
+                            x: path.endpoint.x + 8 + (idx * 5), 
+                            y: path.endpoint.y + (idx % 2 === 0 ? -10 : 10) + (idx * 3)
+                          },
+                          training: path.goldenTraining?.find(t => t.skill === skill) 
+                            ? { 
+                                course: path.goldenTraining.find(t => t.skill === skill)!.course,
+                                platform: path.goldenTraining.find(t => t.skill === skill)!.platform,
+                                url: path.goldenTraining.find(t => t.skill === skill)!.url
+                              } 
+                            : undefined,
+                          isCompleted: false
+                        }));
+                        setGoldenSkillNodes(prev => [...prev, ...newGoldenNodes]);
+                      }
+                    }}
+                  >
+                    <div 
+                      className="w-7 h-7 md:w-10 md:h-10 rounded-xl flex items-center justify-center border-2"
+                      style={{ 
+                        borderColor: path.color,
+                        backgroundColor: `${path.color}20`
+                      }}
+                    >
+                      <Star size={18} color={path.color} />
+                    </div>
+                  </motion.button>
+                );
+              })}
+              
+              {/* Discovered Nodes (gold stars) - only visible when showGoldStars is true */}
+              {showGoldStars && discoveredNodes.map((path) => {
                 const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                const xPos = isDiscovered ? (92 + (discoveryIndex + 1) * 15) : path.endpoint.x;
+                // Wrap discovered nodes to avoid clash with panel - 3 per row
+                const row = Math.floor(discoveryIndex / 3);
+                const col = discoveryIndex % 3;
+                // Position discovered nodes further right (88-98%) to avoid overlap with curriculum weeks
+                const xPos = 88 + col * 4;
+                const yPos = 15 + row * 10;
                 
                 return (
                   <motion.button 
                     key={path.id} 
                     className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50" 
-                    style={{ left: `${xPos}%`, top: `${path.endpoint.y}%` }} 
-                    initial={{ scale: 0 }} 
-                    animate={{ scale: 1 }}
-                    whileHover={{ scale: 1.2, rotate: 15 }}
+                    style={{ left: `${xPos}%`, top: `${yPos}%` }} 
+                    initial={{ scale: 0, opacity: 0 }} 
+                    animate={{ scale: 1, opacity: 1 }}
+                    whileHover={{ scale: 1.25, y: -3 }}
+                    whileTap={{ scale: 0.95 }}
+                    onMouseEnter={() => setHoveredPath(path)}
+                    onMouseLeave={() => setHoveredPath(null)}
                     onClick={() => {
-                      if (!isDiscovered) {
-                        setDiscoveredNodes(prev => [...prev, path]);
-                        setAiPaths([]);
-                        setLastCombo(""); 
-                      }
+                      // Generate new branches from this discovered path (unlimited branching!)
+                      setCompletedWeeks(prev => {
+                        const newWeeks = path.connectedWeekIds?.filter(id => !prev.includes(id)) || [];
+                        return [...prev, ...newWeeks];
+                      });
                     }}
                   >
                     <div 
-                      className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center justify-center border-2 ${!isDiscovered ? 'animate-pulse' : 'shadow-[0_0_20px_rgba(251,191,36,0.4)]'}`} 
-                      style={{ borderColor: path.color, backgroundColor: `${path.color}20` }}
+                      className="w-7 h-7 md:w-10 md:h-10 rounded-xl flex items-center justify-center border-2"
+                      style={{ 
+                        borderColor: path.color,
+                        backgroundColor: `${path.color}30`
+                      }}
                     >
-                      {path.isAI ? <Star size={16} color={path.color} /> : <Rocket size={16} color={path.color} />}
+                      <Star size={18} color={path.color} fill={path.color} fillOpacity={0.5} />
                     </div>
-                    {isDiscovered && (
-                      <div className="absolute top-full mt-1 text-[8px] font-black text-amber-400 uppercase tracking-tighter whitespace-nowrap bg-black/80 px-2 py-0.5 rounded border border-amber-500/30">
-                        {path.name}
-                      </div>
-                    )}
+                    <div className="absolute top-full mt-1 text-[8px] font-black text-amber-400 uppercase tracking-tighter whitespace-nowrap bg-black/80 px-2 py-0.5 rounded border border-amber-500/30">
+                      {path.name}
+                    </div>
                   </motion.button>
                 );
               })}
@@ -601,22 +1039,140 @@ export default function App() {
           </div>
         </div>
 
-        {/* Discoveries Panel */}
-        <div className="w-56 md:w-80 flex flex-col gap-3 overflow-hidden shrink-0">
-          <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl backdrop-blur-md flex-grow overflow-y-auto custom-scrollbar">
-            <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Sparkles size={12} /> AI TRAJECTORIES {isGenerating && <span className="animate-pulse">...</span>}</h2>
-            <div className="space-y-3">
+        {/* Discoveries Panel - Collapsible */}
+        <motion.div 
+          className={`flex flex-col gap-3 overflow-hidden shrink-0 ${isTrajectoryPanelOpen ? 'w-56 md:w-80' : 'w-10'}`}
+          animate={{ width: isTrajectoryPanelOpen ? (window.innerWidth >= 768 ? 320 : 224) : 40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl backdrop-blur-md flex-grow overflow-hidden relative">
+            {/* Collapse/Expand Toggle Button */}
+            <button
+              onClick={() => setIsTrajectoryPanelOpen(!isTrajectoryPanelOpen)}
+              className="absolute top-2 right-2 z-10 w-6 h-6 bg-amber-500/20 hover:bg-amber-500/40 border border-amber-500/30 rounded flex items-center justify-center transition-all"
+              title={isTrajectoryPanelOpen ? "Collapse Panel" : "Expand Panel"}
+            >
+              {isTrajectoryPanelOpen ? <ChevronRight size={14} className="text-amber-400" /> : <ChevronLeft size={14} className="text-amber-400" />}
+            </button>
+            
+            {isTrajectoryPanelOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.1 }}
+                className="h-full overflow-y-auto custom-scrollbar"
+              >
+                <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2 pr-8">
+                  <Sparkles size={12} /> AI TRAJECTORIES 
+                  {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>} 
+                  {isGenerating && <span className="animate-pulse">...</span>}
+                </h2>
+                <div className="space-y-3">
               <AnimatePresence mode="popLayout">
                 {aiPaths.length === 0 ? (<div className="text-slate-500 text-[9px] italic text-center py-8">Waiting for skills to analyze...</div>) : (
-                  aiPaths.map(path => (
+                  aiPaths.map(path => {
+                    const isCollapsed = collapsedCards.has(path.id);
+                    return (
                     <motion.div key={path.id} initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="bg-black/60 border border-amber-500/20 p-2.5 rounded-lg relative group">
-                      <div className="text-[10px] font-bold text-white mb-1 uppercase tracking-tight">{path.name}</div>
+                      {/* Header with Collapse Toggle */}
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-[10px] font-bold text-white uppercase tracking-tight flex items-center gap-1.5">
+                          <Star size={10} className="text-amber-400" />
+                          {path.name}
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newCollapsed = new Set(collapsedCards);
+                            if (isCollapsed) {
+                              newCollapsed.delete(path.id);
+                            } else {
+                              newCollapsed.add(path.id);
+                            }
+                            setCollapsedCards(newCollapsed);
+                          }}
+                          className="w-5 h-5 bg-amber-500/10 hover:bg-amber-500/30 border border-amber-500/30 rounded flex items-center justify-center transition-all"
+                          title={isCollapsed ? "Expand" : "Collapse"}
+                        >
+                          {isCollapsed ? <ChevronLeft size={12} className="text-amber-400 rotate-180" /> : <ChevronLeft size={12} className="text-amber-400 -rotate-90" />}
+                        </button>
+                      </div>
+                      
+                      {/* Collapsible Content */}
+                      {!isCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
                       <div className="text-[8px] text-slate-400 leading-relaxed mb-3">{path.description}</div>
                       <div className="flex gap-1 mb-3">
                         <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
                         <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-[7px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
                         <button onClick={() => openJobSearch('glassdoor', path.searchQuery || '')} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Glassdoor</button>
                       </div>
+
+                      {path.requiredSkills && path.requiredSkills.length > 0 && (
+                        <div className="mb-2 bg-amber-500/10 p-1.5 rounded border border-amber-500/20">
+                          <div className="text-[7px] font-black text-amber-400 uppercase tracking-widest mb-1">Required Skills ({path.requiredSkills.length})</div>
+                          <div className="flex flex-wrap gap-1">
+                            {path.requiredSkills.map((skill, i) => (
+                              <span key={i} className="text-[6px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded uppercase">{skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {path.connectedWeekIds && path.connectedWeekIds.length > 0 && (
+                        <div className="mb-2 bg-blue-500/10 p-1.5 rounded border border-blue-500/20">
+                          <div className="text-[7px] font-black text-blue-400 uppercase tracking-widest mb-1">Connects to Weeks</div>
+                          <div className="flex flex-wrap gap-1">
+                            {path.connectedWeekIds.map((weekId, i) => (
+                              <span key={i} className="text-[6px] bg-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full font-bold">W{weekId}</span>
+                            ))}
+                          </div>
+                          <div className="text-[6px] text-blue-400/70 mt-1 italic">Click path on map to unlock these weeks</div>
+                        </div>
+                      )}
+
+                      {/* GOLDEN PATH - Skills not in curriculum */}
+                      {path.goldenSkills && path.goldenSkills.length > 0 && (
+                        <div className="mb-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 p-2.5 rounded-lg border-2 border-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center">
+                              <span className="text-[10px]">★</span>
+                            </div>
+                            <div className="text-[9px] font-black text-amber-300 uppercase tracking-widest">Golden Path Skills</div>
+                            <span className="text-[7px] text-amber-400/70 italic">(Beyond Curriculum)</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {path.goldenSkills.map((skill, i) => (
+                              <span key={i} className="text-[7px] bg-gradient-to-r from-amber-500/30 to-yellow-500/30 text-amber-200 px-2 py-1 rounded-lg font-bold uppercase border border-amber-400/30 shadow-sm">{skill}</span>
+                            ))}
+                          </div>
+                          
+                          {path.goldenTraining && path.goldenTraining.length > 0 && (
+                            <div className="mt-2 bg-black/40 p-2 rounded border border-amber-500/20">
+                              <div className="text-[7px] font-black text-amber-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                <span>🎓</span> Golden Training
+                              </div>
+                              <div className="space-y-1.5">
+                                {path.goldenTraining.map((training, i) => (
+                                  <a key={i} href={training.url} target="_blank" rel="noopener noreferrer" className="flex flex-col group/link bg-amber-500/10 p-1.5 rounded hover:bg-amber-500/20 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[7px] text-amber-200 font-bold group-hover/link:text-amber-100 transition-colors truncate max-w-[70%]">{training.course}</span>
+                                      <span className="text-[6px] bg-amber-500/30 text-amber-300 px-1.5 py-0.5 rounded uppercase">{training.platform}</span>
+                                    </div>
+                                    <span className="text-[6px] text-amber-400/60 italic mt-0.5">for: {training.skill}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {path.courses && path.courses.length > 0 && (
                         <div className="mb-3 bg-white/5 p-2 rounded border border-white/5">
@@ -632,31 +1188,46 @@ export default function App() {
                         </div>
                       )}
 
-                      <div className="flex flex-wrap gap-1 border-t border-slate-800 pt-2">{path.additionalSkills.map((s, i) => (<span key={i} className="text-[7px] text-amber-500 font-bold uppercase">{s}</span>))}</div>
+                      <div className="flex flex-wrap gap-1 border-t border-slate-800 pt-2">
+                        <span className="text-[7px] text-slate-500 uppercase mr-1">Bridge:</span>
+                        {path.additionalSkills.map((s, i) => (<span key={i} className="text-[7px] text-amber-500 font-bold uppercase">{s}</span>))}
+                      </div>
+                        </motion.div>
+                      )}
                     </motion.div>
-                  ))
+                    );
+                  })
                 )}
               </AnimatePresence>
-            </div>
+                </div>
+              </motion.div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 shrink-0">
-            {staticPaths.map(path => {
-              const progress = getPathProgress(path);
-              const isUnlocked = progress === 100;
-              return (
-                <div key={path.id} className="bg-slate-900/50 border border-slate-800 p-2.5 rounded-lg">
-                  <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-2"><motion.div className="h-full" style={{ backgroundColor: path.color }} animate={{ width: `${progress}%` }} /></div>
-                  {isUnlocked && (<div className="flex gap-1">
-                    <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600/40 hover:bg-indigo-600 text-[6px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
-                    <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600/40 hover:bg-blue-600 text-[6px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
-                  </div>)}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          {isTrajectoryPanelOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 gap-2 shrink-0"
+            >
+              {staticPaths.map(path => {
+                const progress = getPathProgress(path);
+                const isUnlocked = progress === 100;
+                return (
+                  <div key={path.id} className="bg-slate-900/50 border border-slate-800 p-2.5 rounded-lg">
+                    <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
+                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-2"><motion.div className="h-full" style={{ backgroundColor: path.color }} animate={{ width: `${progress}%` }} /></div>
+                    {isUnlocked && (<div className="flex gap-1">
+                      <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600/40 hover:bg-indigo-600 text-[6px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
+                      <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600/40 hover:bg-blue-600 text-[6px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
+                    </div>)}
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </motion.div>
       </div>
     </div>
   );

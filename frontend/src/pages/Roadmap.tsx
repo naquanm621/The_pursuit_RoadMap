@@ -52,7 +52,7 @@ const Roadmap: React.FC = () => {
       
       const triggerAutonomousDiscovery = async () => {
         try {
-          const response = await fetch('http://localhost:3000/api/career-path', {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/career-path`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ skills: achievedSkills }),

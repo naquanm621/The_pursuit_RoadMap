@@ -12,6 +12,10 @@ export declare class GeminiService {
      */
     static getChatResponse(message: string, history: any[], trajectoryName?: string): Promise<string | undefined>;
     /**
+     * Search using DuckDuckGo (free, no API key needed)
+     */
+    private static searchDuckDuckGo;
+    /**
      * Generates a dynamic career path with mesh coordinates.
      */
     static getCombinedCareerPath(skills: string[], gaps?: string[], trajectoryName?: string, existingTitles?: string[]): Promise<any>;
