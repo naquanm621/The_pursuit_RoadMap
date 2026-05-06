@@ -170,6 +170,41 @@ export default function App() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // JD Match State
+  const [showJdModal, setShowJdModal] = useState(false);
+  const [jdText, setJdText] = useState("");
+  const [jdResult, setJdResult] = useState<{
+    matchScore: number;
+    matchedSkills: string[];
+    missingSkills: string[];
+    suggestedPath: string;
+    recommendation: string;
+  } | null>(null);
+  const [isJdLoading, setIsJdLoading] = useState(false);
+
+  const handleMatchJd = async () => {
+    if (!jdText.trim()) return;
+    setIsJdLoading(true);
+    setJdResult(null);
+    try {
+      const allSkills = [
+        ...completedWeeks.map(id => weeks.find(w => w.id === id)?.skill).filter(Boolean),
+        ...previousSkills
+      ] as string[];
+      const res = await fetch('/api/match-jd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobDescription: jdText, skills: allSkills })
+      });
+      const data = await res.json();
+      setJdResult(data);
+    } catch {
+      setJdResult({ matchScore: 0, matchedSkills: [], missingSkills: [], suggestedPath: '', recommendation: 'Failed to analyze. Please try again.' });
+    } finally {
+      setIsJdLoading(false);
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
@@ -1310,11 +1345,20 @@ export default function App() {
                 transition={{ delay: 0.1 }}
                 className="h-full overflow-y-auto custom-scrollbar"
               >
-                <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2 pr-8">
-                  <Sparkles size={12} /> CAREER HORIZONS 
-                  {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>} 
-                  {isGenerating && <span className="animate-pulse">...</span>}
-                </h2>
+                <div className="flex items-center justify-between mb-3 pr-8">
+                  <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles size={12} /> CAREER HORIZONS
+                    {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>}
+                    {isGenerating && <span className="animate-pulse">...</span>}
+                  </h2>
+                  <button
+                    onClick={() => { setShowJdModal(true); setJdResult(null); setJdText(""); }}
+                    className="flex items-center gap-1 bg-blue-600/30 hover:bg-blue-600/60 border border-blue-500/40 text-blue-300 text-[7px] font-black uppercase px-2 py-1 rounded transition-all"
+                    title="Paste a job description to see how well your skills match"
+                  >
+                    <Search size={9} /> Match JD
+                  </button>
+                </div>
                 <div className="space-y-3">
               <AnimatePresence mode="popLayout">
                 {aiPaths.length === 0 ? (<div className="text-slate-500 text-[9px] italic text-center py-8">Waiting for skills to analyze...</div>) : (
@@ -1449,6 +1493,146 @@ export default function App() {
               </motion.div>
             )}
           </div>
+
+          {/* JD Match Modal */}
+          <AnimatePresence>
+            {showJdModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}
+                onClick={(e) => { if (e.target === e.currentTarget) setShowJdModal(false); }}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                  className="w-full max-w-lg bg-gray-950 border border-blue-500/30 rounded-2xl p-5 shadow-2xl shadow-blue-500/10 relative"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center">
+                        <Search size={14} className="text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-black text-white uppercase tracking-wide">Match Job Description</div>
+                        <div className="text-[9px] text-slate-500">Paste any JD — see how your skills align</div>
+                      </div>
+                    </div>
+                    <button onClick={() => setShowJdModal(false)} className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors">
+                      <X size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+
+                  {/* Textarea */}
+                  {!jdResult && (
+                    <>
+                      <textarea
+                        value={jdText}
+                        onChange={e => setJdText(e.target.value)}
+                        placeholder="Paste the full job description here..."
+                        className="w-full h-44 bg-black/50 border border-slate-700 rounded-xl p-3 text-[11px] text-slate-300 placeholder-slate-600 resize-none focus:outline-none focus:border-blue-500/60 transition-colors leading-relaxed"
+                      />
+                      <button
+                        onClick={handleMatchJd}
+                        disabled={isJdLoading || !jdText.trim()}
+                        className="mt-3 w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-black uppercase tracking-widest py-2.5 rounded-xl transition-all"
+                      >
+                        {isJdLoading ? (
+                          <><span className="animate-spin inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full" /> Analyzing...</>
+                        ) : (
+                          <><Sparkles size={12} /> Analyze Match</>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Results */}
+                  {jdResult && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                      {/* Score */}
+                      <div className="flex items-center gap-4 bg-black/50 rounded-xl p-4 border border-slate-800">
+                        <div className="relative w-16 h-16 shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                            <motion.circle
+                              cx="18" cy="18" r="15.9" fill="none"
+                              stroke={jdResult.matchScore >= 70 ? '#22c55e' : jdResult.matchScore >= 40 ? '#f59e0b' : '#ef4444'}
+                              strokeWidth="3" strokeLinecap="round"
+                              strokeDasharray={`${jdResult.matchScore} 100`}
+                              initial={{ strokeDasharray: '0 100' }}
+                              animate={{ strokeDasharray: `${jdResult.matchScore} 100` }}
+                              transition={{ duration: 1, ease: 'easeOut' }}
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm font-black text-white">{jdResult.matchScore}%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Match Score</div>
+                          <div className={`text-sm font-black ${jdResult.matchScore >= 70 ? 'text-green-400' : jdResult.matchScore >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {jdResult.matchScore >= 70 ? 'Strong Match' : jdResult.matchScore >= 40 ? 'Partial Match' : 'Gap to Close'}
+                          </div>
+                          {jdResult.suggestedPath && (
+                            <div className="text-[8px] text-slate-400 mt-1">Closest path: <span className="text-blue-400 font-bold">{jdResult.suggestedPath}</span></div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills you have */}
+                      {jdResult.matchedSkills.length > 0 && (
+                        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-green-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <span>✓</span> Skills You Have ({jdResult.matchedSkills.length})
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {jdResult.matchedSkills.map((s, i) => (
+                              <span key={i} className="text-[8px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full font-bold">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Skills to build */}
+                      {jdResult.missingSkills.length > 0 && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <span>→</span> Skills to Build ({jdResult.missingSkills.length})
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {jdResult.missingSkills.map((s, i) => (
+                              <span key={i} className="text-[8px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full font-bold">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recommendation */}
+                      {jdResult.recommendation && (
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Coach's Take</div>
+                          <p className="text-[10px] text-slate-300 leading-relaxed">{jdResult.recommendation}</p>
+                        </div>
+                      )}
+
+                      {/* Try another */}
+                      <button
+                        onClick={() => { setJdResult(null); setJdText(""); }}
+                        className="w-full text-[9px] font-bold text-slate-400 hover:text-slate-300 uppercase py-1.5 border border-slate-800 hover:border-slate-700 rounded-xl transition-all"
+                      >
+                        Try Another JD
+                      </button>
+                    </motion.div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {isTrajectoryPanelOpen && (
             <motion.div 

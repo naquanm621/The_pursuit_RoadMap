@@ -38,10 +38,10 @@ export class GeminiService {
       const model = genAI.getGenerativeModel({ model: primaryModelName });
       return await execute(model);
     } catch (error: any) {
-      if (error.message?.includes('429') && primaryModelName !== 'gemini-1.5-flash') {
-        console.warn(`[Fallback] ${primaryModelName} rate limited. Retrying with gemini-1.5-flash...`);
+      if (error.message?.includes('429') && primaryModelName !== 'gemini-flash-lite-latest') {
+        console.warn(`[Fallback] ${primaryModelName} rate limited. Retrying with gemini-flash-lite-latest...`);
         const fallbackModel = genAI.getGenerativeModel({ 
-          model: 'gemini-1.5-flash',
+          model: 'gemini-flash-lite-latest',
           tools: [{ googleSearch: {} }] as any
         });
         return await execute(fallbackModel);
@@ -51,7 +51,7 @@ export class GeminiService {
   }
 
   static async processScreenshots(imagePaths: string[]) {
-    return this.runWithModelFallback('gemini-2.0-flash', async (model) => {
+    return this.runWithModelFallback('gemini-flash-lite-latest', async (model) => {
       const imageParts = imagePaths
         .filter(path => fs.existsSync(path) && !path.endsWith('.DS_Store'))
         .map(path => ({
@@ -75,7 +75,7 @@ export class GeminiService {
   static async getChatResponse(message: string, history: any[], trajectoryName: string = "AI Explorer") {
     try {
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
+        model: "gemini-flash-lite-latest",
         systemInstruction: `You are the Pursuit Build Instructor and MVP Specialist. 
         Your primary goal is to help students brainstorm "Build Ideas" and scope their "MVPs" (Minimum Viable Products).
         Current User Trajectory: "${trajectoryName}".
@@ -120,12 +120,56 @@ export class GeminiService {
     }
   }
 
+  static async matchJobDescription(jobDescription: string, skills: string[]) {
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+      const prompt = `You are a career coach analyzing a student's skills against a job description.
+
+Student's current skills: [${skills.join(', ')}]
+
+Job Description:
+"""
+${jobDescription.slice(0, 3000)}
+"""
+
+Analyze the match and return ONLY a JSON object with this exact structure:
+{
+  "matchScore": <number 0-100>,
+  "matchedSkills": ["skill1", "skill2"],
+  "missingSkills": ["skill3", "skill4"],
+  "suggestedPath": "<one career title that best fits this JD>",
+  "recommendation": "<2-3 sentences: how close they are, what to focus on next, encouragement>"
+}
+
+Rules:
+- matchedSkills: skills the student HAS that are relevant to the JD (pull from their skills list)
+- missingSkills: important skills the JD requires that the student doesn't yet have (max 6)
+- matchScore: realistic percentage based on overlap
+- recommendation: practical, specific, motivating`;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON in response');
+      return JSON.parse(jsonMatch[0]);
+    } catch (error: any) {
+      console.error('JD match error:', error.message);
+      return {
+        matchScore: 0,
+        matchedSkills: [],
+        missingSkills: [],
+        suggestedPath: 'Unable to analyze',
+        recommendation: 'Could not analyze the job description. Please try again.'
+      };
+    }
+  }
+
   static async getCombinedCareerPath(skills: string[], gaps: string[] = [], trajectoryName: string = "AI Explorer", existingTitles: string[] = []) {
     try {
       const searchQuery = `${trajectoryName} AI job careers 2025 Coursera Udemy courses`;
       const searchResults = await this.searchDuckDuckGo(searchQuery);
       
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 
       const prompt = `Given these achieved skills: [${skills.join(', ')}] and these MISSED skills: [${gaps.join(', ')}],
         and the user's current trajectory: "${trajectoryName}".
