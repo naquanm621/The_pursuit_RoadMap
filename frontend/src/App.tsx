@@ -79,7 +79,7 @@ const staticPaths: CareerPath[] = [
     name: 'Product Engineer',
     requiredWeeks: [1, 2, 3, 6, 8],
     additionalSkills: ['Figma', 'React'],
-    color: '#ffffff',
+    color: '#00ffff',
     endpoint: { x: 92, y: 30 },
     searchQuery: 'Product Engineer React'
   },
@@ -88,7 +88,7 @@ const staticPaths: CareerPath[] = [
     name: 'Automation Expert',
     requiredWeeks: [1, 2, 4, 5, 7],
     additionalSkills: ['Python', 'Docker'],
-    color: '#ffffff',
+    color: '#ff00ff',
     endpoint: { x: 92, y: 60 },
     searchQuery: 'Automation Engineer Python'
   },
@@ -97,7 +97,7 @@ const staticPaths: CareerPath[] = [
     name: 'Full Stack AI',
     requiredWeeks: [1, 2, 3, 4, 5, 6, 7, 8],
     additionalSkills: ['System Design'],
-    color: '#ffffff',
+    color: '#ffff00',
     endpoint: { x: 92, y: 90 },
     searchQuery: 'Full Stack AI Developer'
   },
@@ -224,7 +224,7 @@ export default function App() {
       const allSkills = [...previousSkills, ...curriculumSkills];
       
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/trajectory`, {
+        const response = await fetch(`/api/trajectory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ skills: allSkills }),
@@ -271,7 +271,7 @@ export default function App() {
               trajectoryContext = `${lastNode.name} Specialist`;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/career-path`, {
+            const response = await fetch(`/api/career-path`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -1462,7 +1462,7 @@ export default function App() {
                 const isUnlocked = progress === 100;
                 return (
                   <div key={path.id} className="bg-slate-900/50 border border-slate-800 p-2.5 rounded-lg">
-                    <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
+                    <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-white uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
                     <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-2"><motion.div className="h-full" style={{ backgroundColor: path.color }} animate={{ width: `${progress}%` }} /></div>
                     {isUnlocked && (<div className="flex gap-1">
                       <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600/40 hover:bg-indigo-600 text-[6px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
