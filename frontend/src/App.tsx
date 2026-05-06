@@ -79,7 +79,7 @@ const staticPaths: CareerPath[] = [
     name: 'Product Engineer',
     requiredWeeks: [1, 2, 3, 6, 8],
     additionalSkills: ['Figma', 'React'],
-    color: '#00ffff',
+    color: '#ffffff',
     endpoint: { x: 92, y: 30 },
     searchQuery: 'Product Engineer React'
   },
@@ -88,7 +88,7 @@ const staticPaths: CareerPath[] = [
     name: 'Automation Expert',
     requiredWeeks: [1, 2, 4, 5, 7],
     additionalSkills: ['Python', 'Docker'],
-    color: '#ff00ff',
+    color: '#ffffff',
     endpoint: { x: 92, y: 60 },
     searchQuery: 'Automation Engineer Python'
   },
@@ -97,7 +97,7 @@ const staticPaths: CareerPath[] = [
     name: 'Full Stack AI',
     requiredWeeks: [1, 2, 3, 4, 5, 6, 7, 8],
     additionalSkills: ['System Design'],
-    color: '#ffff00',
+    color: '#ffffff',
     endpoint: { x: 92, y: 90 },
     searchQuery: 'Full Stack AI Developer'
   },
@@ -620,6 +620,25 @@ export default function App() {
           </div>
         </div>
         
+        {/* Color Key */}
+        <div className={`hidden md:flex items-center gap-3 px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white/80 border-slate-200 shadow-sm'}`}>
+          <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Key</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 border border-blue-300/60 shadow-[0_0_6px_rgba(59,130,246,0.6)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>Core</span>
+          </div>
+          <div className={`h-4 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`}></div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-white border border-white/60 shadow-[0_0_6px_rgba(255,255,255,0.5)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-white/70' : 'text-slate-600'}`}>Trajectory</span>
+          </div>
+          <div className={`h-4 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`}></div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-amber-400 border border-amber-300/60 shadow-[0_0_6px_rgba(251,191,36,0.6)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-amber-300' : 'text-amber-600'}`}>AI Path</span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           {/* Theme Toggle */}
           <button
