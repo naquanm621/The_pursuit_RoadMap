@@ -22,6 +22,18 @@ args = "Start application"
 task = "workflow.run"
 args = "Backend API"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "backend-build"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "frontend-build"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "backend-typecheck"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -45,6 +57,39 @@ waitForPort = 3001
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "backend-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && npm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "frontend-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "backend-typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && npx tsc --noEmit"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[ports]]
 localPort = 3001
