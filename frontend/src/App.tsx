@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Zap, Brain, Code, Database, Cpu, Globe, Rocket, Terminal, Layers, Star, ExternalLink, Briefcase, Search, GraduationCap, Plus, X, ArrowRight, Eye, EyeOff, Lock, User, Send, MessageSquare, History, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Zap, Brain, Code, Database, Cpu, Globe, Rocket, Terminal, Layers, Star, ExternalLink, Briefcase, Search, GraduationCap, Plus, X, ArrowRight, Eye, EyeOff, Lock, User, Send, MessageSquare, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react';
 
 interface Week {
   id: number;
@@ -110,10 +110,11 @@ const predictionData = [
   { weeks: 8, readiness: '85%', status: 'Professional' },
 ];
 
-type AppView = 'login' | 'onboarding' | 'roadmap' | 'log';
+type AppView = 'login' | 'onboarding' | 'tutorial' | 'roadmap' | 'log';
 
 export default function App() {
   const [view, setView] = useState<AppView>('login');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [completedWeeks, setCompletedWeeks] = useState<number[]>([]);
   const [aiPaths, setAiPaths] = useState<CareerPath[]>([]);
   const [discoveredNodes, setDiscoveredNodes] = useState<CareerPath[]>([]);
@@ -121,6 +122,8 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [mapScale, setMapScale] = useState(1);
   const [lastCombo, setLastCombo] = useState("");
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef({ scrollLeft: 0, scrollTop: 0 });
   
   // Keyboard zoom controls
   useEffect(() => {
@@ -189,26 +192,14 @@ export default function App() {
     setChatMessages(prev => [...prev, { role: 'user', parts: userMessage }]);
     setIsChatLoading(true);
 
-    try {
-      const curriculumSkills = weeks.filter(w => completedWeeks.includes(w.id)).map(w => w.skill);
-      const allSkills = [...previousSkills, ...curriculumSkills];
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage, 
-          history: chatMessages,
-          skills: allSkills
-        }),
-      });
-      const data = await response.json();
-      setChatMessages(prev => [...prev, { role: 'model', parts: data.response }]);
-    } catch (error) {
-      console.error('Chat error:', error);
-    } finally {
+    // Future Feature - Default response without API call
+    setTimeout(() => {
+      setChatMessages(prev => [...prev, { 
+        role: 'model', 
+        parts: "🚧 Journey Log AI Tutor is a future feature! For now, continue exploring your roadmap and discovering career trajectories. Every skill you complete brings new opportunities into view." 
+      }]);
       setIsChatLoading(false);
-    }
+    }, 800);
   };
 
   const toggleWeek = (weekId: number) => {
@@ -256,6 +247,14 @@ export default function App() {
       
       const timer = setTimeout(() => {
         setLastCombo(comboKey);
+        
+        // Preserve scroll position before generating
+        if (mapContainerRef.current) {
+          scrollPositionRef.current = {
+            scrollLeft: mapContainerRef.current.scrollLeft,
+            scrollTop: mapContainerRef.current.scrollTop
+          };
+        }
         
         const generateNewBranches = async () => {
           setIsGenerating(true);
@@ -311,6 +310,13 @@ export default function App() {
             console.error('Dynamic Branching Failed', error);
           } finally {
             setIsGenerating(false);
+            // Restore scroll position after generation
+            setTimeout(() => {
+              if (mapContainerRef.current) {
+                mapContainerRef.current.scrollLeft = scrollPositionRef.current.scrollLeft;
+                mapContainerRef.current.scrollTop = scrollPositionRef.current.scrollTop;
+              }
+            }, 50);
           }
         };
         generateNewBranches();
@@ -333,7 +339,6 @@ export default function App() {
     switch(platform) {
       case 'indeed': url = `https://www.indeed.com/jobs?q=${q}`; break;
       case 'linkedin': url = `https://www.linkedin.com/jobs/search/?keywords=${q}`; break;
-      case 'glassdoor': url = `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`; break;
     }
     window.open(url, '_blank');
   };
@@ -425,7 +430,103 @@ export default function App() {
               </motion.div>
             ))}</AnimatePresence>
           </div>
-          <button onClick={() => setView('roadmap')} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">Generate My Roadmap <ArrowRight size={18} /></button>
+          <button onClick={() => setView('tutorial')} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">Continue <ArrowRight size={18} /></button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // TUTORIAL VIEW - Map Guide
+  if (view === 'tutorial') {
+    return (
+      <div className={`fixed inset-0 flex items-center justify-center p-3 overflow-auto ${theme === 'dark' ? 'bg-[#0a0a0f]' : 'bg-slate-100'}`}>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent pointer-events-none"></div>
+        
+        {/* Theme Toggle */}
+        <button 
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className={`absolute top-4 right-4 p-2 rounded-lg transition-all z-50 ${theme === 'dark' ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-slate-200 shadow-lg'}`}
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        
+        {/* Back Button */}
+        <button 
+          onClick={() => setView('onboarding')}
+          className={`absolute top-4 left-4 flex items-center gap-1 px-3 py-2 rounded-lg transition-all z-50 text-xs font-bold uppercase ${theme === 'dark' ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-200 shadow-lg'}`}
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`w-full max-w-xl border p-4 rounded-xl backdrop-blur-xl shadow-2xl relative my-auto ${theme === 'dark' ? 'bg-slate-900/50 border-blue-500/30' : 'bg-white/80 border-blue-300/50'}`}>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+          
+          <div className="mb-3 text-center">
+            <h1 className={`text-2xl font-black mb-1 uppercase tracking-tighter italic ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Your Journey Map</h1>
+            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Understanding your path to a tech career</p>
+          </div>
+
+          {/* Map Guide */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className={`p-2.5 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-100 border-slate-300'}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 border border-blue-300"></div>
+                <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Core Curriculum</span>
+              </div>
+              <p className={`text-[8px] leading-tight ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>8 weeks of foundational AI & software engineering skills.</p>
+            </div>
+            
+            <div className={`p-2.5 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-100 border-slate-300'}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-3 h-3 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-300"></div>
+                <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Career Horizons</span>
+              </div>
+              <p className={`text-[8px] leading-tight ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Discover career paths based on completed weeks.</p>
+            </div>
+            
+            <div className={`p-2.5 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-100 border-slate-300'}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Star size={10} className="text-yellow-400" />
+                <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Golden Skills</span>
+              </div>
+              <p className={`text-[8px] leading-tight ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Premium skills unlocked through AI discoveries.</p>
+            </div>
+            
+            <div className={`p-2.5 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-100 border-slate-300'}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-green-500 to-emerald-700 border border-green-300"></div>
+                <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Week Badges</span>
+              </div>
+              <p className={`text-[8px] leading-tight ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Each week has a unique color. Click to complete.</p>
+            </div>
+          </div>
+
+          {/* Color Key */}
+          <div className={`p-2.5 rounded-lg border mb-3 ${theme === 'dark' ? 'bg-black/30 border-white/5' : 'bg-slate-200/50 border-slate-300'}`}>
+            <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Week Colors</p>
+            <div className="flex flex-wrap gap-1">
+              <span className="text-[7px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold">1 AI</span>
+              <span className="text-[7px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-bold">2 Found</span>
+              <span className="text-[7px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">3 Prob</span>
+              <span className="text-[7px] bg-green-500 text-white px-1.5 py-0.5 rounded font-bold">4 Auto</span>
+              <span className="text-[7px] bg-cyan-500 text-white px-1.5 py-0.5 rounded font-bold">5 Data</span>
+              <span className="text-[7px] bg-blue-500 text-white px-1.5 py-0.5 rounded font-bold">6 UX</span>
+              <span className="text-[7px] bg-purple-500 text-white px-1.5 py-0.5 rounded font-bold">7 Test</span>
+              <span className="text-[7px] bg-pink-500 text-white px-1.5 py-0.5 rounded font-bold">8 Show</span>
+            </div>
+          </div>
+
+          {/* Motivational Quote */}
+          <div className={`p-3 rounded-lg border mb-3 ${theme === 'dark' ? 'bg-gradient-to-r from-amber-500/10 via-yellow-500/10 to-amber-500/10 border-amber-500/20' : 'bg-gradient-to-r from-amber-100 via-yellow-100 to-amber-100 border-amber-300'}`}>
+            <p className={`text-xs italic text-center leading-relaxed ${theme === 'dark' ? 'text-amber-200' : 'text-amber-800'}`}>
+              "Every skill you master brings you closer to your future. Stay curious, stay persistent. Your Pursuit starts now."
+            </p>
+            <p className={`text-[9px] text-center mt-1 uppercase tracking-widest ${theme === 'dark' ? 'text-amber-400/60' : 'text-amber-600'}`}>— In Pursuit</p>
+          </div>
+
+          <button onClick={() => setView('roadmap')} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-sm">
+            Generate My Roadmap <ArrowRight size={16} />
+          </button>
         </motion.div>
       </div>
     );
@@ -438,7 +539,7 @@ export default function App() {
         <div className="flex justify-between items-center p-6 border-b border-white/5 bg-black/40 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <button onClick={() => setView('roadmap')} className="text-slate-500 hover:text-white transition-colors"><ArrowRight className="rotate-180" size={24} /></button>
-            <div><h1 className="text-xl font-black text-white uppercase italic tracking-tighter">Journey Log</h1><p className="text-[8px] text-blue-400 font-bold uppercase tracking-widest">AI Tutor & Logger Active</p></div>
+            <div><h1 className="text-xl font-black text-white uppercase italic tracking-tighter">Journey Log</h1><p className="text-[8px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1">AI Tutor & Logger Active <span className="bg-amber-500/30 px-1.5 py-0.5 rounded text-[6px] text-amber-300">FUTURE FEATURE</span></p></div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block"><p className="text-[9px] text-slate-500 font-bold uppercase">{email}</p></div>
@@ -497,68 +598,83 @@ export default function App() {
 
   // ROADMAP VIEW
   return (
-    <div className="fixed inset-0 bg-[#0a0a0f] overflow-hidden flex flex-col p-4 md:p-6">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent pointer-events-none"></div>
+    <div className={`fixed inset-0 overflow-hidden flex flex-col p-4 md:p-6 ${theme === 'dark' ? 'bg-[#0a0a0f]' : 'bg-slate-100'}`}>
+      <div className={`absolute inset-0 pointer-events-none ${theme === 'dark' ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent' : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-200/30 via-transparent to-transparent'}`}></div>
 
       {/* Top HUD */}
-      <div className="flex flex-row justify-between items-center mb-4 shrink-0">
+      <div className={`flex flex-row justify-between items-center mb-4 shrink-0 p-2 rounded-xl ${theme === 'dark' ? '' : 'bg-white/80 shadow-lg border border-slate-200'}`}>
         <div>
-          <h1 className="text-xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 leading-tight">
+          <h1 className={`text-xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r leading-tight ${theme === 'dark' ? 'from-blue-400 via-indigo-400 to-purple-400' : 'from-blue-600 via-indigo-600 to-purple-600'}`}>
             PURSUIT ROADMAP
           </h1>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-blue-300/50 uppercase font-bold tracking-widest">
+            <span className={`text-[10px] uppercase font-bold tracking-widest ${theme === 'dark' ? 'text-blue-300/50' : 'text-slate-500'}`}>
               {completedWeeks.length}/8 WEEKS COMPLETED
             </span>
-            <button onClick={() => setView('log')} className="flex items-center gap-1.5 ml-4 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[9px] font-black px-3 py-1 rounded-full border border-blue-500/20 transition-all uppercase tracking-widest italic">
-              <MessageSquare size={12} /> Open Journey Log
+            <button onClick={() => setView('tutorial')} className={`flex items-center gap-1 ml-3 px-3 py-1 rounded-full border transition-all uppercase tracking-widest text-[9px] font-black ${theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 border-slate-600/30' : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border-slate-300'}`}>
+              <ChevronLeft size={12} /> Guide
+            </button>
+            <button onClick={() => setView('log')} className={`flex items-center gap-1.5 ml-2 px-3 py-1 rounded-full border transition-all uppercase tracking-widest italic text-[9px] font-black ${theme === 'dark' ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border-blue-500/20' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-300'}`}>
+              <MessageSquare size={12} /> Log <span className="bg-amber-500/30 px-1 rounded text-[6px] text-amber-300">FUTURE</span>
             </button>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Theme Toggle */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className={`p-2 rounded-lg border transition-all ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-yellow-400 hover:bg-slate-700' : 'bg-white/80 border-slate-300 text-slate-600 hover:bg-slate-100 shadow-lg'}`}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          
           {/* Gold Stars Toggle */}
           <button
             onClick={() => setShowGoldStars(!showGoldStars)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${showGoldStars ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${showGoldStars ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-500' : 'bg-white/80 border-slate-300 text-slate-500 shadow-lg'}`}
             title={showGoldStars ? "Hide Gold Stars" : "Show Gold Stars"}
           >
             <Star size={14} className={showGoldStars ? "fill-amber-400" : ""} />
             <span className="text-[9px] font-black uppercase tracking-wider hidden md:inline">{showGoldStars ? 'Hide' : 'Show'}</span>
           </button>
           
-          <div className="bg-indigo-900/20 border border-indigo-500/30 p-2 md:p-3 rounded-lg backdrop-blur-md flex items-center gap-3">
+          <div className={`border p-2 md:p-3 rounded-lg backdrop-blur-md flex items-center gap-3 ${theme === 'dark' ? 'bg-indigo-900/20 border-indigo-500/30' : 'bg-indigo-100/50 border-indigo-300/50 shadow-lg'}`}>
             <div className="text-right">
-              <div className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">Role Readiness</div>
-              <div className="text-xl md:text-2xl font-black text-white leading-none">{currentPrediction.readiness}</div>
+              <div className={`text-[8px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>Role Readiness</div>
+              <div className={`text-xl md:text-2xl font-black leading-none ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>{currentPrediction.readiness}</div>
             </div>
-            <div className="h-8 w-px bg-indigo-500/30"></div>
-            <div className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded uppercase tracking-tighter">
+            <div className={`h-8 w-px ${theme === 'dark' ? 'bg-indigo-500/30' : 'bg-indigo-300/50'}`}></div>
+            <div className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter ${theme === 'dark' ? 'text-indigo-300 bg-indigo-500/20' : 'text-indigo-700 bg-indigo-200/50'}`}>
               {currentPrediction.status}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-grow gap-4 min-h-0">
-        <div className="relative flex-grow border border-blue-500/20 rounded-xl bg-black/40 backdrop-blur-sm overflow-auto custom-scrollbar scroll-smooth">
+      <div className={`flex flex-grow gap-4 min-h-0 ${theme === 'dark' ? '' : 'bg-slate-100'}`}>
+        <div 
+          ref={mapContainerRef}
+          className={`relative flex-grow border rounded-xl backdrop-blur-sm overflow-auto custom-scrollbar scroll-smooth ${theme === 'dark' ? 'border-blue-500/20 bg-black/40' : 'border-blue-300/50 bg-white/60'}`}
+        >
           {/* Zoom Controls */}
           <div className="fixed bottom-6 left-6 z-50 flex flex-col gap-2">
             <button 
               onClick={() => setMapScale(prev => Math.min(prev + 0.1, 2))}
-              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg"
+              className={`w-10 h-10 border rounded-lg flex items-center justify-center transition-colors shadow-lg ${theme === 'dark' ? 'bg-slate-900/90 border-blue-500/30 text-blue-400 hover:bg-blue-600/20' : 'bg-white/90 border-blue-400/50 text-blue-600 hover:bg-blue-100'}`}
             >
-              <span className="text-lg font-bold text-blue-400">+</span>
+              <span className="text-lg font-bold">+</span>
             </button>
             <button 
               onClick={() => setMapScale(prev => Math.max(prev - 0.1, 0.5))}
-              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg"
+              className={`w-10 h-10 border rounded-lg flex items-center justify-center transition-colors shadow-lg ${theme === 'dark' ? 'bg-slate-900/90 border-blue-500/30 text-blue-400 hover:bg-blue-600/20' : 'bg-white/90 border-blue-400/50 text-blue-600 hover:bg-blue-100'}`}
             >
-              <span className="text-lg font-bold text-blue-400">-</span>
+              <span className="text-lg font-bold">-</span>
             </button>
             <button 
               onClick={() => setMapScale(1)}
-              className="w-10 h-10 bg-slate-900/90 border border-blue-500/30 rounded-lg flex items-center justify-center hover:bg-blue-600/20 transition-colors shadow-lg text-[9px] font-bold text-blue-400"
+              className={`w-10 h-10 border rounded-lg flex items-center justify-center transition-colors shadow-lg text-[9px] font-bold ${theme === 'dark' ? 'bg-slate-900/90 border-blue-500/30 text-blue-400 hover:bg-blue-600/20' : 'bg-white/90 border-blue-400/50 text-blue-600 hover:bg-blue-100'}`}
             >
               100%
             </button>
@@ -573,122 +689,132 @@ export default function App() {
               height: `${100 / mapScale}%`
             }}
           >
-            {/* Skill Review Banner Overlay - Follows mouse, doesn't stick */}
-            <AnimatePresence>
-              {hoveredWeek !== null && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }} 
-                  animate={{ opacity: 1, y: 0, scale: 1 }} 
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute z-[100] pointer-events-none"
-                  style={{ 
-                    left: `${weeks.find(w => w.id === hoveredWeek)?.position.x}%`,
-                    top: `${Math.max(5, (weeks.find(w => w.id === hoveredWeek)?.position.y || 50) - 25)}%`,
-                    transform: 'translate(-50%, -100%)'
-                  }}
-                >
-                  <div className="w-[300px]">
-                    <div className="bg-slate-900/98 border-2 border-blue-500/60 p-4 rounded-xl shadow-[0_0_40px_rgba(59,130,246,0.3)] backdrop-blur-xl">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="bg-blue-500/20 p-2 rounded-lg">
-                          <GraduationCap className="text-blue-400" size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-black text-white uppercase tracking-wider">{weeks.find(w => w.id === hoveredWeek)?.title}</h3>
-                          <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Skill Review</p>
-                        </div>
+            {/* Skill Review Banner - Simple, no lag - positioned to the right */}
+            {hoveredWeek !== null && (
+              <div 
+                className="absolute z-[100] pointer-events-none transition-opacity duration-200"
+                style={{ 
+                  left: `${(weeks.find(w => w.id === hoveredWeek)?.position.x || 0) + 8}%`,
+                  top: `${weeks.find(w => w.id === hoveredWeek)?.position.y}%`,
+                  transform: 'translate(0%, -50%)'
+                }}
+              >
+                <div className="w-[180px]">
+                  <div className={`border p-2.5 rounded-lg shadow-lg backdrop-blur-md ${theme === 'dark' ? 'bg-slate-900/95 border-blue-500/30' : 'bg-white/95 border-blue-400/50'}`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <GraduationCap className={`${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`} size={14} />
+                      <div>
+                        <h3 className={`text-[11px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{weeks.find(w => w.id === hoveredWeek)?.title}</h3>
+                        <p className={`text-[8px] uppercase ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>Skill Review</p>
                       </div>
-                      <div className="space-y-2">
-                        {weeks.find(w => w.id === hoveredWeek)?.review.map((item, i) => (
-                          <div key={i} className="flex items-start gap-3 text-[11px] text-slate-300 bg-black/30 p-2 rounded-lg">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 flex-shrink-0" />
-                            <span className="leading-relaxed">{item}</span>
-                          </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      {weeks.find(w => w.id === hoveredWeek)?.review.slice(0, 3).map((item, i) => (
+                        <div key={i} className={`flex items-start gap-1.5 text-[9px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                          <div className={`w-1 h-1 rounded-full mt-1 flex-shrink-0 ${theme === 'dark' ? 'bg-blue-500' : 'bg-blue-400'}`} />
+                          <span className="leading-tight">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+              
+            {/* Path Banner - Simple, follows element position */}
+            {hoveredPath !== null && (
+              <div 
+                className="absolute z-[100] pointer-events-none transition-opacity duration-200"
+                style={{ 
+                  left: `${Math.min(hoveredPath.endpoint.x, 85)}%`,
+                  top: `${hoveredPath.endpoint.y + 8}%`,
+                  transform: 'translate(-50%, 0%)'
+                }}
+              >
+                <div className="w-[240px]">
+                  <div className="bg-slate-900/95 border border-amber-500/40 p-3 rounded-lg shadow-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Star className="text-amber-400" size={14} />
+                      <div>
+                        <h3 className="text-[11px] font-bold text-white">{hoveredPath.name}</h3>
+                        <p className="text-[8px] text-amber-400 uppercase">Trajectory</p>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-slate-300 mb-2 leading-relaxed line-clamp-2">{hoveredPath.description}</div>
+                    
+                    {hoveredPath.goldenSkills && hoveredPath.goldenSkills.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {hoveredPath.goldenSkills.slice(0, 3).map((skill, i) => (
+                          <span key={i} className="text-[7px] bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded">★ {skill}</span>
                         ))}
                       </div>
+                    )}
+                    
+                    <div className="mt-2 text-[8px] text-slate-500 italic">
+                      Click to discover
                     </div>
                   </div>
-                </motion.div>
-              )}
-              
-              {hoveredPath !== null && (() => {
-                const isDiscoveredHover = discoveredNodes.find(d => d.id === hoveredPath.id);
-                const hoverIndex = discoveredNodes.findIndex(d => d.id === hoveredPath.id);
-                const hRow = Math.floor(hoverIndex / 3);
-                const hCol = hoverIndex % 3;
-                const bannerX = isDiscoveredHover ? (88 + hCol * 4) : Math.min(hoveredPath.endpoint.x, 80);
-                const bannerY = isDiscoveredHover ? (15 + hRow * 10) : hoveredPath.endpoint.y;
-                return (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }} 
-                  animate={{ opacity: 1, y: 0, scale: 1 }} 
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute z-[100] pointer-events-none"
-                  style={{ 
-                    left: `${bannerX}%`,
-                    top: `${Math.max(5, bannerY - 15)}%`,
-                    transform: 'translate(-50%, -100%)'
-                  }}
-                >
-                  <div className="w-[280px]">
-                    <div className="bg-slate-900/98 border-2 border-amber-500/60 p-4 rounded-xl shadow-[0_0_40px_rgba(251,191,36,0.3)] backdrop-blur-xl">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="bg-amber-500/20 p-2 rounded-lg">
-                          <Star className="text-amber-400" size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-black text-white uppercase tracking-wider">{hoveredPath.name}</h3>
-                          <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">Trajectory Path</p>
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-slate-300 mb-3 leading-relaxed">{hoveredPath.description}</div>
-                      
-                      {hoveredPath.requiredSkills && hoveredPath.requiredSkills.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-[9px] text-amber-400/80 uppercase font-bold mb-1">Required Skills</p>
-                          <div className="flex flex-wrap gap-1">
-                            {hoveredPath.requiredSkills.map((skill, i) => (
-                              <span key={i} className="text-[8px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded uppercase">{skill}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {hoveredPath.goldenSkills && hoveredPath.goldenSkills.length > 0 && (
-                        <div>
-                          <p className="text-[9px] text-yellow-400/80 uppercase font-bold mb-1">Golden Skills</p>
-                          <div className="flex flex-wrap gap-1">
-                            {hoveredPath.goldenSkills.map((skill, i) => (
-                              <span key={i} className="text-[8px] bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded uppercase">★ {skill}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="mt-3 pt-2 border-t border-slate-700/50 text-[9px] text-slate-400 italic">
-                        Click to discover this path
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );})()}
-            </AnimatePresence>
+                </div>
+              </div>
+            )}
 
             <svg className="absolute inset-0 size-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
-                {/* Static gradient - no animation */}
+                {/* Glow Filter */}
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2" result="blur"/>
+                  <feMerge>
+                    <feMergeNode in="blur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                
+                {/* Strong Glow Filter for golden elements */}
+                <filter id="strongGlow">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feColorMatrix in="blur" type="matrix" values="
+                    1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 18 -7" result="glow"/>
+                  <feMerge>
+                    <feMergeNode in="glow"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                
+                {/* Animated gradient for roads */}
                 <linearGradient id="roadGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#3b82f6"/>
-                  <stop offset="50%" stopColor="#818cf8"/>
-                  <stop offset="100%" stopColor="#8b5cf6"/>
+                  <stop offset="0%" stopColor="#3b82f6">
+                    <animate attributeName="stop-color" values="#3b82f6;#818cf8;#3b82f6" dur="4s" repeatCount="indefinite"/>
+                  </stop>
+                  <stop offset="50%" stopColor="#818cf8">
+                    <animate attributeName="stop-color" values="#818cf8;#8b5cf6;#818cf8" dur="4s" repeatCount="indefinite"/>
+                  </stop>
+                  <stop offset="100%" stopColor="#8b5cf6">
+                    <animate attributeName="stop-color" values="#8b5cf6;#3b82f6;#8b5cf6" dur="4s" repeatCount="indefinite"/>
+                  </stop>
                 </linearGradient>
                 
-                {/* Gold gradient for golden paths */}
+                {/* Animated gold gradient for golden paths */}
                 <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#fbbf24"/>
-                  <stop offset="50%" stopColor="#f59e0b"/>
-                  <stop offset="100%" stopColor="#fbbf24"/>
+                  <stop offset="0%" stopColor="#fbbf24">
+                    <animate attributeName="stop-color" values="#fbbf24;#f59e0b;#fbbf24" dur="3s" repeatCount="indefinite"/>
+                  </stop>
+                  <stop offset="50%" stopColor="#f59e0b">
+                    <animate attributeName="stop-color" values="#f59e0b;#fbbf24;#f59e0b" dur="3s" repeatCount="indefinite"/>
+                  </stop>
+                  <stop offset="100%" stopColor="#fbbf24">
+                    <animate attributeName="stop-color" values="#fbbf24;#f59e0b;#fbbf24" dur="3s" repeatCount="indefinite"/>
+                  </stop>
                 </linearGradient>
+                
+                {/* Energy pattern for roads */}
+                <pattern id="energyPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+                  <circle cx="5" cy="5" r="2" fill="white" opacity="0.5">
+                    <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                </pattern>
               </defs>
               <AnimatePresence>
                 {/* GOLDEN MASTER PATH - Only shows when ALL weeks 1-8 are completed */}
@@ -697,17 +823,22 @@ export default function App() {
                   const from = weeks[idx - 1];
                   const to = week;
                   
+                  // Calculate curved path for smoother connection
+                  const midX = (from.position.x + to.position.x) / 2;
+                  const midY = (from.position.y + to.position.y) / 2 - 8; // Curve upward
+                  const pathD = `M${from.position.x},${from.position.y} Q${midX},${midY} ${to.position.x},${to.position.y}`;
+                  
                   return (
-                    <motion.line 
+                    <motion.path 
                       key={`golden-path-${from.id}-${to.id}`} 
-                      x1={`${from.position.x}%`} y1={`${from.position.y}%`} 
-                      x2={`${to.position.x}%`} y2={`${to.position.y}%`} 
+                      d={pathD}
                       stroke="url(#goldGradient)"
-                      strokeWidth="1.5"
+                      strokeWidth="0.5"
                       strokeLinecap="round"
+                      fill="none"
                       initial={{ pathLength: 0, opacity: 0 }} 
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 0.5, delay: idx * 0.05 }}
+                      animate={{ pathLength: 1, opacity: 0.7 }}
+                      transition={{ duration: 1, delay: idx * 0.1 }}
                     />
                   );
                 })}
@@ -718,45 +849,54 @@ export default function App() {
                   const from = weeks.find(w => w.id === completedWeeks[idx - 1]);
                   const to = weeks.find(w => w.id === weekId);
                   if (!from || !to) return null;
+                  // Calculate curved path for smoother connection
+                  const midX = (from.position.x + to.position.x) / 2;
+                  const midY = (from.position.y + to.position.y) / 2 - 5; // Gentle curve
+                  const pathD = `M${from.position.x},${from.position.y} Q${midX},${midY} ${to.position.x},${to.position.y}`;
+                  
                   return (
-                    <motion.line 
+                    <motion.path 
                       key={`order-road-${from.id}-${to.id}`} 
-                      x1={`${from.position.x}%`} y1={`${from.position.y}%`} 
-                      x2={`${to.position.x}%`} y2={`${to.position.y}%`} 
+                      d={pathD}
                       stroke="url(#roadGradient)" 
-                      strokeWidth="1.5" 
+                      strokeWidth="0.6" 
                       strokeLinecap="round"
+                      fill="none"
                       initial={{ pathLength: 0, opacity: 0 }} 
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      animate={{ pathLength: 1, opacity: 0.6 }}
+                      transition={{ duration: 0.8, delay: idx * 0.1 }}
                     />
                   );
                 })}
-                {/* Lines connecting discovered nodes to each other */}
+                {/* Lines connecting discovered nodes to each other - curved and subtle */}
                 {showGoldStars && discoveredNodes.map((node, idx) => {
                   if (idx === 0) return null;
                   const prevNode = discoveredNodes[idx - 1];
-                  const row = Math.floor(idx / 3);
-                  const col = idx % 3;
-                  const prevRow = Math.floor((idx - 1) / 3);
-                  const prevCol = (idx - 1) % 3;
-                  const fromX = 88 + prevCol * 4;
-                  const fromY = 15 + prevRow * 10;
-                  const toX = 88 + col * 4;
-                  const toY = 15 + row * 10;
+                  const row = Math.floor(idx / 2);
+                  const col = idx % 2;
+                  const prevRow = Math.floor((idx - 1) / 2);
+                  const prevCol = (idx - 1) % 2;
+                  const fromX = 96 + prevCol * 4;
+                  const fromY = 12 + prevRow * 14;
+                  const toX = 96 + col * 4;
+                  const toY = 12 + row * 14;
+                  // Curved path
+                  const midX = (fromX + toX) / 2;
+                  const midY = Math.min(fromY, toY) - 3;
+                  const pathD = `M${fromX},${fromY} Q${midX},${midY} ${toX},${toY}`;
                   
                   return (
-                    <motion.line
+                    <motion.path
                       key={`discovered-link-${node.id}`}
-                      x1={`${fromX}%`} y1={`${fromY}%`}
-                      x2={`${toX}%`} y2={`${toY}%`}
-                      stroke="url(#goldGradient)"
-                      strokeWidth="1.2"
+                      d={pathD}
+                      stroke="#fbbf2460"
+                      strokeWidth="0.4"
                       strokeLinecap="round"
-                      strokeDasharray="4,2"
+                      fill="none"
+                      strokeDasharray="3,3"
                       initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      animate={{ pathLength: 1, opacity: 0.5 }}
+                      transition={{ duration: 0.6, delay: idx * 0.1 }}
                     />
                   );
                 })}
@@ -781,34 +921,39 @@ export default function App() {
 
                   return (
                     <g key={`ai-road-group-${path.id}`}>
-                      {/* Main connection line from parent to path */}
-                      <motion.line 
+                      {/* Main connection line from parent to path - curved */}
+                      <motion.path 
                         key={`ai-road-${path.id}`} 
-                        x1={`${fromX}%`} y1={`${fromY}%`} 
-                        x2={`${toX}%`} y2={`${toY}%`} 
-                        stroke={isDiscovered ? "url(#goldGradient)" : "#fbbf2480"}
-                        strokeWidth={isDiscovered ? "1.5" : "1"}
+                        d={`M${fromX},${fromY} Q${(fromX + toX) / 2},${Math.min(fromY, toY) - 6} ${toX},${toY}`}
+                        stroke={isDiscovered ? "#fbbf24a0" : "#fbbf2460"}
+                        strokeWidth={isDiscovered ? "0.5" : "0.3"}
                         strokeLinecap="round"
-                        strokeDasharray={isDiscovered ? "0" : "4,2"}
+                        fill="none"
+                        strokeDasharray={isDiscovered ? "0" : "3,2"}
                         initial={{ pathLength: 0, opacity: 0 }} 
-                        animate={{ pathLength: 1, opacity: 1 }}
-                        transition={{ duration: 0.3 }}
+                        animate={{ pathLength: 1, opacity: isDiscovered ? 0.7 : 0.4 }}
+                        transition={{ duration: 0.6 }}
                       />
-                      {/* Connection lines from path to its connected weeks (unlimited branching) */}
-                      {path.connectedWeekIds?.map((weekId, idx) => {
+                      {/* Connection lines from path to its connected weeks - curved and subtle */}
+                      {path.connectedWeekIds?.slice(0, 3).map((weekId, idx) => {
                         const week = weeks.find(w => w.id === weekId);
                         if (!week) return null;
+                        // Curved path
+                        const midX = (toX + week.position.x) / 2;
+                        const midY = Math.min(toY, week.position.y) - 4;
+                        const pathD = `M${toX},${toY} Q${midX},${midY} ${week.position.x},${week.position.y}`;
+                        
                         return (
-                          <motion.line
+                          <motion.path
                             key={`path-week-${path.id}-${weekId}`}
-                            x1={`${toX}%`} y1={`${toY}%`}
-                            x2={`${week.position.x}%`} y2={`${week.position.y}%`}
-                            stroke={isDiscovered ? "url(#goldGradient)" : "#60a5fa40"}
-                            strokeWidth={isDiscovered ? "1" : "0.5"}
+                            d={pathD}
+                            stroke={isDiscovered ? "#fbbf2460" : "#60a5fa30"}
+                            strokeWidth={isDiscovered ? "0.4" : "0.25"}
                             strokeLinecap="round"
-                            strokeDasharray={isDiscovered ? "3,2" : "2,4"}
+                            fill="none"
+                            strokeDasharray={isDiscovered ? "2,2" : "2,3"}
                             initial={{ opacity: 0, pathLength: 0 }}
-                            animate={{ opacity: isDiscovered ? 0.8 : 0.3, pathLength: 1 }}
+                            animate={{ opacity: isDiscovered ? 0.5 : 0.25, pathLength: 1 }}
                             transition={{ delay: idx * 0.1, duration: 0.5 }}
                           />
                         );
@@ -835,16 +980,29 @@ export default function App() {
                   whileTap={{ scale: 0.95 }}
                 >
                   <div 
-                    className={`w-8 h-8 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${isCompleted ? 'bg-blue-600 border-blue-400' : 'bg-slate-800 border-slate-600'}`}
+                    className={`w-8 h-8 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${isCompleted ? 'bg-gradient-to-br from-blue-500 to-blue-700 border-blue-300 shadow-lg shadow-blue-500/40' : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600'}`}
                   >
                     <Icon size={16} className={isCompleted ? 'text-white' : 'text-slate-500'} />
+                    {/* Week number badge with different colors */}
+                    <div className={`absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border border-black shadow-md ${
+                      week.id === 1 ? 'bg-red-500 text-white' :
+                      week.id === 2 ? 'bg-orange-500 text-white' :
+                      week.id === 3 ? 'bg-yellow-500 text-black' :
+                      week.id === 4 ? 'bg-green-500 text-white' :
+                      week.id === 5 ? 'bg-cyan-500 text-white' :
+                      week.id === 6 ? 'bg-blue-500 text-white' :
+                      week.id === 7 ? 'bg-purple-500 text-white' :
+                      'bg-pink-500 text-white'
+                    }`}>
+                      {week.id}
+                    </div>
                     {isCompleted && (
                       <div className="absolute -top-2 -right-2 bg-blue-400 text-black text-[7px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">
                         {completionOrder + 1}
                       </div>
                     )}
                   </div>
-                  <div className={`absolute top-full mt-1 text-[7px] md:text-[9px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded ${isCompleted ? 'text-blue-200 bg-black/80 border border-blue-500/50' : 'text-slate-400 bg-black/60 border border-slate-700'} max-w-[100px] overflow-hidden text-ellipsis`}>
+                  <div className={`absolute top-full mt-2 text-[7px] md:text-[9px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full border backdrop-blur-sm ${isCompleted ? 'text-blue-200 bg-blue-950/80 border-blue-500/50' : 'text-slate-400 bg-black/60 border-slate-700'} max-w-[100px] overflow-hidden text-ellipsis`}>
                     {week.skill}
                   </div>
                 </motion.button>
@@ -859,40 +1017,81 @@ export default function App() {
                   const parentPath = discoveredNodes.find(p => p.id === node.parentPathId);
                   if (!parentPath) return null;
                   
+                  // Curved path from parent to skill node
+                  const midX = (parentPath.endpoint.x + node.position.x) / 2;
+                  const midY = (parentPath.endpoint.y + node.position.y) / 2 - 3;
+                  const pathD = `M${parentPath.endpoint.x},${parentPath.endpoint.y} Q${midX},${midY} ${node.position.x},${node.position.y}`;
+                  
                   return (
-                    <motion.line
+                    <motion.path
                       key={`golden-line-${node.id}`}
-                      x1={`${parentPath.endpoint.x}%`} y1={`${parentPath.endpoint.y}%`}
-                      x2={`${node.position.x}%`} y2={`${node.position.y}%`}
-                      stroke={node.isCompleted ? "url(#goldGradient)" : "#fbbf2460"}
-                      strokeWidth={node.isCompleted ? "1.2" : "0.6"}
+                      d={pathD}
+                      stroke={node.isCompleted ? "#fbbf24c0" : "#fbbf2450"}
+                      strokeWidth={node.isCompleted ? "0.5" : "0.3"}
                       strokeLinecap="round"
-                      strokeDasharray={node.isCompleted ? "0" : "4,2"}
+                      fill="none"
+                      strokeDasharray={node.isCompleted ? "0" : "2,2"}
                       initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      animate={{ pathLength: 1, opacity: node.isCompleted ? 0.8 : 0.4 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
                     />
                   );
                 })}
                 
-                {/* Golden paths connecting sequential skill nodes */}
+                {/* Golden paths connecting to core curriculum weeks - very subtle */}
+                {goldenSkillNodes.slice(0, 4).map((node, idx) => {
+                  const parentPath = discoveredNodes.find(p => p.id === node.parentPathId);
+                  if (!parentPath || !parentPath.connectedWeekIds) return null;
+                  
+                  return parentPath.connectedWeekIds.slice(0, 2).map((weekId, connIdx) => {
+                    const week = weeks.find(w => w.id === weekId);
+                    if (!week) return null;
+                    
+                    // Curved path
+                    const midX = (node.position.x + week.position.x) / 2;
+                    const midY = Math.min(node.position.y, week.position.y) - 2;
+                    const pathD = `M${node.position.x},${node.position.y} Q${midX},${midY} ${week.position.x},${week.position.y}`;
+                    
+                    return (
+                      <motion.path
+                        key={`golden-to-week-${node.id}-${weekId}-${connIdx}`}
+                        d={pathD}
+                        stroke="#fbbf2430"
+                        strokeWidth="0.25"
+                        strokeLinecap="round"
+                        fill="none"
+                        strokeDasharray="1,2"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 0.35 }}
+                        transition={{ duration: 0.5, delay: idx * 0.1 + connIdx * 0.05 }}
+                      />
+                    );
+                  });
+                })}
+                
+                {/* Golden paths connecting sequential skill nodes - curved */}
                 {goldenSkillNodes.map((node, idx) => {
                   if (idx === 0) return null;
                   const prevNode = goldenSkillNodes[idx - 1];
                   if (prevNode.parentPathId !== node.parentPathId) return null;
                   
+                  // Curved path between skill nodes
+                  const midX = (prevNode.position.x + node.position.x) / 2;
+                  const midY = (prevNode.position.y + node.position.y) / 2 - 2;
+                  const pathD = `M${prevNode.position.x},${prevNode.position.y} Q${midX},${midY} ${node.position.x},${node.position.y}`;
+                  
                   return (
-                    <motion.line
+                    <motion.path
                       key={`golden-skill-line-${node.id}`}
-                      x1={`${prevNode.position.x}%`} y1={`${prevNode.position.y}%`}
-                      x2={`${node.position.x}%`} y2={`${node.position.y}%`}
-                      stroke="url(#goldGradient)"
-                      strokeWidth="1"
+                      d={pathD}
+                      stroke="#fbbf2480"
+                      strokeWidth="0.4"
                       strokeLinecap="round"
-                      strokeDasharray="3,3"
+                      fill="none"
+                      strokeDasharray="2,2"
                       initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      animate={{ pathLength: 1, opacity: 0.6 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
                     />
                   );
                 })}
@@ -919,15 +1118,29 @@ export default function App() {
                   }}
                 >
                   <div 
-                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center"
+                    className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${node.isCompleted ? 'shadow-lg shadow-amber-500/50' : ''}`}
                     style={{
                       borderColor: node.isCompleted ? '#fbbf24' : 'rgba(245,158,11,0.5)',
-                      backgroundColor: node.isCompleted ? '#fbbf24' : 'rgba(17,24,39,0.9)'
+                      background: node.isCompleted 
+                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' 
+                        : 'linear-gradient(135deg, rgba(17,24,39,0.9) 0%, rgba(30,41,59,0.8) 100%)',
+                      boxShadow: node.isCompleted 
+                        ? '0 0 20px rgba(251,191,36,0.7), 0 0 40px rgba(251,191,36,0.4), inset 0 1px 2px rgba(255,255,255,0.3)' 
+                        : '0 0 10px rgba(245,158,11,0.3), inset 0 1px 2px rgba(255,255,255,0.1)'
                     }}
                   >
-                    <span className="text-[9px] md:text-[11px]">★</span>
+                    <span className="text-[9px] md:text-[11px] drop-shadow-[0_0_4px_rgba(251,191,36,0.8)]">★</span>
+                    {/* Pulsing glow for completed */}
+                    {node.isCompleted && (
+                      <motion.div
+                        className="absolute inset-0 rounded-full border-2 border-amber-300"
+                        initial={{ scale: 1, opacity: 0.5 }}
+                        animate={{ scale: 1.4, opacity: 0 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
+                      />
+                    )}
                   </div>
-                  <div className={`absolute top-full mt-1 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded max-w-[60px] overflow-hidden text-ellipsis ${node.isCompleted ? 'text-amber-300 bg-black/80 border border-amber-500/50' : 'text-slate-400 bg-black/60 border border-slate-700'}`}>
+                  <div className={`absolute top-full mt-1.5 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full max-w-[70px] overflow-hidden text-ellipsis transition-colors border backdrop-blur-sm ${node.isCompleted ? 'text-amber-300 bg-amber-950/80 border-amber-500/50' : 'text-slate-400 bg-black/70 border-slate-700'}`}>
                     {node.name}
                   </div>
                 </motion.button>
@@ -941,14 +1154,16 @@ export default function App() {
                   <motion.button 
                     key={path.id} 
                     className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50" 
-                    style={{ left: `${Math.min(path.endpoint.x, 80)}%`, top: `${path.endpoint.y}%` }} 
+                    style={{ left: `${Math.min(path.endpoint.x, 85)}%`, top: `${path.endpoint.y}%` }} 
                     initial={{ scale: 0, opacity: 0 }} 
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.3, rotate: 10, y: -3 }}
                     whileTap={{ scale: 0.9 }}
                     onMouseEnter={() => setHoveredPath(path)}
                     onMouseLeave={() => setHoveredPath(null)}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       // First discovery - add to discovered nodes
                       setDiscoveredNodes(prev => [...prev, path]);
                       setAiPaths([]);
@@ -961,9 +1176,9 @@ export default function App() {
                           name: skill,
                           parentPathId: path.id,
                           position: { 
-                            // Position in an arc around the path endpoint
-                            x: path.endpoint.x + 8 + (idx * 5), 
-                            y: path.endpoint.y + (idx % 2 === 0 ? -10 : 10) + (idx * 3)
+                            // Position spread out to avoid overcrowding
+                            x: path.endpoint.x + 10 + (idx % 3) * 6, 
+                            y: path.endpoint.y + (idx * 12) - (path.goldenSkills!.length * 4)
                           },
                           training: path.goldenTraining?.find(t => t.skill === skill) 
                             ? { 
@@ -979,13 +1194,18 @@ export default function App() {
                     }}
                   >
                     <div 
-                      className="w-7 h-7 md:w-10 md:h-10 rounded-xl flex items-center justify-center border-2"
+                      className="w-5 h-5 md:w-7 md:h-7 rounded-lg flex items-center justify-center border-2 relative"
                       style={{ 
                         borderColor: path.color,
-                        backgroundColor: `${path.color}20`
+                        background: `linear-gradient(135deg, ${path.color}30 0%, ${path.color}10 100%)`,
+                        boxShadow: `0 0 10px ${path.color}50`
                       }}
                     >
-                      <Star size={18} color={path.color} />
+                      <Star size={14} color={path.color} fill={path.color} fillOpacity={0.3} />
+                    </div>
+                    {/* Title label - only on initial AI paths */}
+                    <div className="absolute top-full mt-1 text-[7px] font-bold text-amber-400 uppercase whitespace-nowrap bg-black/80 px-1.5 py-0.5 rounded border border-amber-500/30">
+                      {path.name.length > 15 ? path.name.substring(0, 15) + '...' : path.name}
                     </div>
                   </motion.button>
                 );
@@ -994,12 +1214,12 @@ export default function App() {
               {/* Discovered Nodes (gold stars) - only visible when showGoldStars is true */}
               {showGoldStars && discoveredNodes.map((path) => {
                 const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                // Wrap discovered nodes to avoid clash with panel - 3 per row
-                const row = Math.floor(discoveryIndex / 3);
-                const col = discoveryIndex % 3;
-                // Position discovered nodes further right (88-98%) to avoid overlap with curriculum weeks
-                const xPos = 88 + col * 4;
-                const yPos = 15 + row * 10;
+                // Spread discovered nodes with more spacing - 2 per row
+                const row = Math.floor(discoveryIndex / 2);
+                const col = discoveryIndex % 2;
+                // Position discovered nodes further right (96-102%) with more vertical spacing
+                const xPos = 96 + col * 4;
+                const yPos = 12 + row * 14;
                 
                 return (
                   <motion.button 
@@ -1012,7 +1232,9 @@ export default function App() {
                     whileTap={{ scale: 0.95 }}
                     onMouseEnter={() => setHoveredPath(path)}
                     onMouseLeave={() => setHoveredPath(null)}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       // Generate new branches from this discovered path (unlimited branching!)
                       setCompletedWeeks(prev => {
                         const newWeeks = path.connectedWeekIds?.filter(id => !prev.includes(id)) || [];
@@ -1021,16 +1243,22 @@ export default function App() {
                     }}
                   >
                     <div 
-                      className="w-7 h-7 md:w-10 md:h-10 rounded-xl flex items-center justify-center border-2"
+                      className="w-5 h-5 md:w-7 md:h-7 rounded-lg flex items-center justify-center border-2 relative"
                       style={{ 
                         borderColor: path.color,
-                        backgroundColor: `${path.color}30`
+                        background: `linear-gradient(135deg, ${path.color}40 0%, ${path.color}15 100%)`,
+                        boxShadow: `0 0 20px ${path.color}80, 0 0 40px ${path.color}40, inset 0 1px 2px rgba(255,255,255,0.3)`
                       }}
                     >
-                      <Star size={18} color={path.color} fill={path.color} fillOpacity={0.5} />
+                      <Star size={14} color={path.color} fill={path.color} fillOpacity={0.5} />
                     </div>
-                    <div className="absolute top-full mt-1 text-[8px] font-black text-amber-400 uppercase tracking-tighter whitespace-nowrap bg-black/80 px-2 py-0.5 rounded border border-amber-500/30">
-                      {path.name}
+                    {/* On Road to Skill - shown when tapped/activated */}
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[7px] font-bold text-emerald-400 whitespace-nowrap bg-emerald-950/90 px-2 py-0.5 rounded border border-emerald-500/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                      On Road to Skill
+                    </div>
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-[7px] font-black px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[60] shadow-lg border border-blue-400/30">
+                      Click to branch further
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-blue-600"></div>
                     </div>
                   </motion.button>
                 );
@@ -1064,7 +1292,7 @@ export default function App() {
                 className="h-full overflow-y-auto custom-scrollbar"
               >
                 <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2 pr-8">
-                  <Sparkles size={12} /> AI TRAJECTORIES 
+                  <Sparkles size={12} /> CAREER HORIZONS 
                   {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>} 
                   {isGenerating && <span className="animate-pulse">...</span>}
                 </h2>
@@ -1111,7 +1339,6 @@ export default function App() {
                       <div className="flex gap-1 mb-3">
                         <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
                         <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-[7px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
-                        <button onClick={() => openJobSearch('glassdoor', path.searchQuery || '')} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Glassdoor</button>
                       </div>
 
                       {path.requiredSkills && path.requiredSkills.length > 0 && (
