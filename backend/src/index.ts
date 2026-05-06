@@ -55,6 +55,20 @@ app.post('/api/career-path', async (req, res) => {
   }
 });
 
+// Job Description Match Endpoint
+app.post('/api/match-jd', async (req, res) => {
+  try {
+    const { jobDescription, skills } = req.body;
+    if (!jobDescription || typeof jobDescription !== 'string') {
+      return res.status(400).json({ error: 'jobDescription is required' });
+    }
+    const result = await GeminiService.matchJobDescription(jobDescription, skills || []);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to analyze job description' });
+  }
+});
+
 // Journey Log Chat Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
