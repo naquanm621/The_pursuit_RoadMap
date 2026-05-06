@@ -60,5 +60,5 @@ externalPort = 3000
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd backend && node dist/index.js & cd frontend && npx serve dist -l 5000"]
+run = ["bash", "-c", "cd backend && node dist/index.js"]
 build = ["bash", "-c", "cd frontend && npm run build && cd ../backend && npm ci && npm run build"]

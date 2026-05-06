@@ -2,12 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import * as fs from 'fs';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 import { GeminiService } from './services/gemini.service.js';
 import { TrajectoryService } from './services/trajectory.service.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -56,7 +60,6 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { message, history, skills } = req.body;
     
-    // Calculate trajectory on the fly for chat personalization
     const weight = TrajectoryService.calculateWeight(skills || []);
     const trajectoryName = TrajectoryService.getTrajectoryName(weight);
     
@@ -70,7 +73,6 @@ app.post('/api/chat', async (req, res) => {
 // Endpoint to trigger screenshot processing
 app.post('/api/process-curriculum', async (req, res) => {
   try {
-    // In a real app, we'd list files in the /screenshots folder
     const files = fs.readdirSync('../screenshots').map(f => `../screenshots/${f}`);
     const syllabus = await GeminiService.processScreenshots(files);
     res.json(syllabus);
@@ -78,6 +80,17 @@ app.post('/api/process-curriculum', async (req, res) => {
     res.status(500).json({ error: 'Failed to process screenshots' });
   }
 });
+
+// Serve frontend static files in production
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  // SPA fallback — serve index.html for any non-API route
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+  console.log(`Serving frontend from ${frontendDist}`);
+}
 
 app.listen(port, () => {
   console.log(`Backend listening at http://localhost:${port}`);
