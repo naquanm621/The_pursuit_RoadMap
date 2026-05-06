@@ -635,7 +635,7 @@ export default function App() {
           <div className={`h-4 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`}></div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-amber-400 border border-amber-300/60 shadow-[0_0_6px_rgba(251,191,36,0.6)]"></div>
-            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-amber-300' : 'text-amber-600'}`}>AI Path</span>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-amber-300' : 'text-amber-600'}`}>Path</span>
           </div>
         </div>
 
