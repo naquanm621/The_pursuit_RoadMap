@@ -1000,30 +1000,6 @@ export default function App() {
                         animate={{ pathLength: 1, opacity: isDiscovered ? 0.7 : 0.4 }}
                         transition={{ duration: 0.6 }}
                       />
-                      {/* Connection lines from path to its connected weeks - curved and subtle */}
-                      {path.connectedWeekIds?.slice(0, 3).map((weekId, idx) => {
-                        const week = weeks.find(w => w.id === weekId);
-                        if (!week) return null;
-                        // Curved path
-                        const midX = (toX + week.position.x) / 2;
-                        const midY = Math.min(toY, week.position.y) - 4;
-                        const pathD = `M${toX},${toY} Q${midX},${midY} ${week.position.x},${week.position.y}`;
-
-                        return (
-                          <motion.path
-                            key={`path-week-${path.id}-${weekId}`}
-                            d={pathD}
-                            stroke={isDiscovered ? "#fbbf2460" : "#60a5fa30"}
-                            strokeWidth={isDiscovered ? "0.4" : "0.25"}
-                            strokeLinecap="round"
-                            fill="none"
-                            strokeDasharray={isDiscovered ? "2,2" : "2,3"}
-                            initial={{ opacity: 0, pathLength: 0 }}
-                            animate={{ opacity: isDiscovered ? 0.5 : 0.25, pathLength: 1 }}
-                            transition={{ delay: idx * 0.1, duration: 0.5 }}
-                          />
-                        );
-                      })}
                     </g>
                   );
                 })}
@@ -1104,63 +1080,6 @@ export default function App() {
                   );
                 })}
                 
-                {/* Golden paths connecting to core curriculum weeks - very subtle */}
-                {goldenSkillNodes.slice(0, 4).map((node, idx) => {
-                  const parentPath = discoveredNodes.find(p => p.id === node.parentPathId);
-                  if (!parentPath || !parentPath.connectedWeekIds) return null;
-                  
-                  return parentPath.connectedWeekIds.slice(0, 2).map((weekId, connIdx) => {
-                    const week = weeks.find(w => w.id === weekId);
-                    if (!week) return null;
-                    
-                    // Curved path
-                    const midX = (node.position.x + week.position.x) / 2;
-                    const midY = Math.min(node.position.y, week.position.y) - 2;
-                    const pathD = `M${node.position.x},${node.position.y} Q${midX},${midY} ${week.position.x},${week.position.y}`;
-                    
-                    return (
-                      <motion.path
-                        key={`golden-to-week-${node.id}-${weekId}-${connIdx}`}
-                        d={pathD}
-                        stroke="#fbbf2430"
-                        strokeWidth="0.25"
-                        strokeLinecap="round"
-                        fill="none"
-                        strokeDasharray="1,2"
-                        initial={{ pathLength: 0, opacity: 0 }}
-                        animate={{ pathLength: 1, opacity: 0.35 }}
-                        transition={{ duration: 0.5, delay: idx * 0.1 + connIdx * 0.05 }}
-                      />
-                    );
-                  });
-                })}
-                
-                {/* Golden paths connecting sequential skill nodes - curved */}
-                {goldenSkillNodes.map((node, idx) => {
-                  if (idx === 0) return null;
-                  const prevNode = goldenSkillNodes[idx - 1];
-                  if (prevNode.parentPathId !== node.parentPathId) return null;
-                  
-                  // Curved path between skill nodes
-                  const midX = (prevNode.position.x + node.position.x) / 2;
-                  const midY = (prevNode.position.y + node.position.y) / 2 - 2;
-                  const pathD = `M${prevNode.position.x},${prevNode.position.y} Q${midX},${midY} ${node.position.x},${node.position.y}`;
-                  
-                  return (
-                    <motion.path
-                      key={`golden-skill-line-${node.id}`}
-                      d={pathD}
-                      stroke="#fbbf2480"
-                      strokeWidth="0.4"
-                      strokeLinecap="round"
-                      fill="none"
-                      strokeDasharray="2,2"
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 0.6 }}
-                      transition={{ duration: 0.5, delay: idx * 0.1 }}
-                    />
-                  );
-                })}
               </AnimatePresence>
             </svg>
 
@@ -1181,32 +1100,38 @@ export default function App() {
                     setSelectedSkillId(node.parentPathId);
                   }}
                 >
-                  <div 
-                    className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${node.isCompleted ? 'shadow-lg shadow-amber-500/50' : ''}`}
+                  <div
+                    className={`w-7 h-7 md:w-9 md:h-9 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${node.isCompleted ? 'shadow-lg shadow-amber-500/50' : ''}`}
                     style={{
                       borderColor: node.isCompleted ? '#fbbf24' : 'rgba(245,158,11,0.5)',
-                      background: node.isCompleted 
-                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' 
-                        : 'linear-gradient(135deg, rgba(17,24,39,0.9) 0%, rgba(30,41,59,0.8) 100%)',
-                      boxShadow: node.isCompleted 
-                        ? '0 0 20px rgba(251,191,36,0.7), 0 0 40px rgba(251,191,36,0.4), inset 0 1px 2px rgba(255,255,255,0.3)' 
-                        : '0 0 10px rgba(245,158,11,0.3), inset 0 1px 2px rgba(255,255,255,0.1)'
+                      background: node.isCompleted
+                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                        : 'linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(30,41,59,0.9) 100%)',
+                      boxShadow: node.isCompleted
+                        ? '0 0 20px rgba(251,191,36,0.7), 0 0 40px rgba(251,191,36,0.4), inset 0 1px 2px rgba(255,255,255,0.3)'
+                        : '0 0 12px rgba(245,158,11,0.4), inset 0 1px 2px rgba(255,255,255,0.1)'
                     }}
                   >
-                    <span className="text-[9px] md:text-[11px] drop-shadow-[0_0_4px_rgba(251,191,36,0.8)]">★</span>
-                    {/* Pulsing glow for completed */}
+                    <span className="text-[10px] md:text-[12px] drop-shadow-[0_0_4px_rgba(251,191,36,0.8)]">★</span>
                     {node.isCompleted && (
                       <motion.div
                         className="absolute inset-0 rounded-full border-2 border-amber-300"
                         initial={{ scale: 1, opacity: 0.5 }}
-                        animate={{ scale: 1.4, opacity: 0 }}
+                        animate={{ scale: 1.5, opacity: 0 }}
                         transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
                       />
                     )}
                   </div>
-                  <div className={`absolute top-full mt-1.5 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full max-w-[70px] overflow-hidden text-ellipsis transition-colors border backdrop-blur-sm ${node.isCompleted ? 'text-amber-300 bg-amber-950/80 border-amber-500/50' : 'text-slate-400 bg-black/70 border-slate-700'}`}>
+                  {/* Label appears on hover only */}
+                  <div className={`absolute top-full mt-2 text-[7px] md:text-[8px] font-bold whitespace-nowrap px-2.5 py-1 rounded-full border opacity-0 group-hover:opacity-100 transition-opacity duration-200 backdrop-blur-md pointer-events-none z-50 max-w-[90px] overflow-hidden text-ellipsis shadow-lg ${node.isCompleted ? 'text-amber-200 bg-amber-950/90 border-amber-500/60' : 'text-slate-300 bg-slate-900/90 border-slate-600'}`}>
                     {node.name}
                   </div>
+                  {/* Training tooltip on hover */}
+                  {node.training && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-2 py-1 rounded-md border opacity-0 group-hover:opacity-100 transition-opacity duration-200 backdrop-blur-md pointer-events-none z-50 shadow-lg bg-blue-950/90 border-blue-500/40 text-blue-200">
+                      {node.training.platform}: {node.training.course}
+                    </div>
+                  )}
                 </motion.button>
               ))}
             </AnimatePresence>
@@ -1231,11 +1156,11 @@ export default function App() {
 
                       // Compute the stable grid endpoint ONCE (outside setState so both updaters see the same value)
                       const discoveryIndex = discoveredNodes.length;
-                      const row = Math.floor(discoveryIndex / 2);
-                      const col = discoveryIndex % 2;
+                      const row = Math.floor(discoveryIndex / 3);
+                      const col = discoveryIndex % 3;
                       const endpoint = {
-                        x: Math.min(94 + col * 5, 98),
-                        y: Math.min(10 + row * 16, 90)
+                        x: Math.min(85 + col * 6, 97),
+                        y: Math.min(12 + row * 18, 88)
                       };
 
                       // First discovery - add to discovered nodes
@@ -1247,23 +1172,34 @@ export default function App() {
                       setGoldenSkillNodes(prev => {
                         if (!path.goldenSkills || path.goldenSkills.length === 0) return prev;
                         const newNodes: GoldenSkillNode[] = [];
+                        const skillCount = path.goldenSkills.length;
+                        const radius = 14;
+                        const startAngle = -Math.PI / 3; // start from upper-right
+                        const arcSpan = (2 * Math.PI) / 3; // 120 degree arc
                         path.goldenSkills.forEach((skill, idx) => {
-                          // Start in a small fan below-right of the parent endpoint
-                          let gx = endpoint.x + 3 + (idx % 2) * 4;
-                          let gy = endpoint.y + 6 + Math.floor(idx / 2) * 9;
-                          // Push away from every already-placed node (prev + newNodes in this batch)
-                          for (const n of [...prev, ...newNodes]) {
-                            const dx = gx - n.position.x;
-                            const dy = gy - n.position.y;
-                            const d = Math.sqrt(dx * dx + dy * dy);
-                            if (d < 10 && d > 0) {
-                              gy += (10 - d) * (dy / d || 1);
-                              gx += (10 - d) * (dx / d || 0) * 0.5;
+                          // Radial arc placement around parent endpoint
+                          const angle = startAngle + (skillCount > 1 ? (idx / (skillCount - 1)) * arcSpan : 0);
+                          let gx = endpoint.x + Math.cos(angle) * radius;
+                          let gy = endpoint.y + Math.sin(angle) * radius;
+                          // Global collision pass against ALL golden nodes (existing + new batch)
+                          for (let iter = 0; iter < 5; iter++) {
+                            let moved = false;
+                            for (const n of [...prev, ...newNodes]) {
+                              const dx = gx - n.position.x;
+                              const dy = gy - n.position.y;
+                              const d = Math.sqrt(dx * dx + dy * dy);
+                              if (d < 15 && d > 0) {
+                                const push = (15 - d) / d;
+                                gx += dx * push * 0.6;
+                                gy += dy * push * 0.6;
+                                moved = true;
+                              }
                             }
+                            if (!moved) break;
                           }
                           // Clamp inside viewport
-                          gx = Math.max(78, Math.min(98, gx));
-                          gy = Math.max(5, Math.min(92, gy));
+                          gx = Math.max(76, Math.min(98, gx));
+                          gy = Math.max(6, Math.min(90, gy));
                           newNodes.push({
                             id: `golden-${path.id}-${idx}`,
                             name: skill,
