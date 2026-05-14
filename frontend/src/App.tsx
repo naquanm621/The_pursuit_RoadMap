@@ -181,6 +181,7 @@ export default function App() {
     recommendation: string;
   } | null>(null);
   const [isJdLoading, setIsJdLoading] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
 
   const handleMatchJd = async () => {
     if (!jdText.trim()) return;
@@ -1177,9 +1178,7 @@ export default function App() {
                   whileHover={{ scale: 1.2 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => {
-                    setGoldenSkillNodes(prev => prev.map(n => 
-                      n.id === node.id ? { ...n, isCompleted: !n.isCompleted } : n
-                    ));
+                    setSelectedSkillId(node.parentPathId);
                   }}
                 >
                   <div 
@@ -1393,6 +1392,43 @@ export default function App() {
                   </button>
                 </div>
                 <div className="space-y-3">
+              {/* MY CAREER TRAJECTORY — discovered paths */}
+              {discoveredNodes.length > 0 && (
+                <div className="mb-3">
+                  <h3 className="text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                    <Briefcase size={10} /> My Career Trajectory
+                    <span className="bg-emerald-500/30 px-1.5 py-0.5 rounded-full text-[8px]">{discoveredNodes.length}</span>
+                  </h3>
+                  <div className="space-y-2">
+                    {discoveredNodes.map(path => (
+                      <motion.div
+                        key={`career-${path.id}`}
+                        id={`career-card-${path.id}`}
+                        initial={{ x: 20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className={`bg-black/60 border p-2 rounded-lg relative transition-all duration-300 ${
+                          selectedSkillId === path.id
+                            ? 'border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
+                            : 'border-emerald-500/20'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-[10px] font-bold text-white uppercase tracking-tight flex items-center gap-1.5">
+                            <Star size={10} className="text-emerald-400" />
+                            {path.name}
+                          </div>
+                        </div>
+                        <div className="text-[8px] text-slate-400 leading-relaxed line-clamp-2">{path.description}</div>
+                        <div className="flex gap-1 mt-2">
+                          <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
+                          <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-[7px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <AnimatePresence mode="popLayout">
                 {aiPaths.length === 0 ? (<div className="text-slate-500 text-[9px] italic text-center py-8">Waiting for skills to analyze...</div>) : (
                   aiPaths.map(path => {
