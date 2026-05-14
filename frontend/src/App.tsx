@@ -322,23 +322,43 @@ export default function App() {
               const lastNode = discoveredNodes[discoveredNodes.length - 1];
               const lastWeekId = completedWeeks[completedWeeks.length - 1];
               
-              const newPaths = data.map((item: any, idx: number) => ({
-                id: `ai-${Date.now()}-${idx}`,
-                name: item.careerTitle,
-                requiredWeeks: [...completedWeeks],
-                additionalSkills: [item.bridgeSuggestion, item.leapSuggestion],
-                color: '#fbbf24',
-                endpoint: { x: Math.min(item.x || 92, 95), y: Math.max(15, Math.min(85, item.y || (15 + idx * 7))) },
-                isAI: true,
-                description: item.description,
-                searchQuery: item.indeedQuery || item.careerTitle,
-                parentId: lastNode ? lastNode.id : lastWeekId,
-                courses: item.topCourses || [],
-                requiredSkills: item.requiredSkills || [],
-                connectedWeekIds: item.connectedWeekIds || completedWeeks,
-                goldenSkills: item.goldenSkills || [],
-                goldenTraining: item.goldenTraining || []
-              }));
+              // Prevent overlapping AI path endpoints by spreading them in a grid
+              const minSpacing = 14;
+              const placedEndpoints: { x: number; y: number }[] = [];
+              const newPaths = data.map((item: any, idx: number) => {
+                let baseX = Math.min(item.x || 88, 92);
+                let baseY = Math.max(12, Math.min(88, item.y || (12 + idx * 14)));
+                // Shift away from already-placed endpoints to avoid overlap
+                for (const ep of placedEndpoints) {
+                  const dx = baseX - ep.x;
+                  const dy = baseY - ep.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < minSpacing && dist > 0) {
+                    baseY += (minSpacing - dist) * (dy / dist || 1);
+                    baseX += (minSpacing - dist) * (dx / dist || 0) * 0.5;
+                  }
+                }
+                baseX = Math.max(82, Math.min(96, baseX));
+                baseY = Math.max(8, Math.min(92, baseY));
+                placedEndpoints.push({ x: baseX, y: baseY });
+                return {
+                  id: `ai-${Date.now()}-${idx}`,
+                  name: item.careerTitle,
+                  requiredWeeks: [...completedWeeks],
+                  additionalSkills: [item.bridgeSuggestion, item.leapSuggestion],
+                  color: '#fbbf24',
+                  endpoint: { x: baseX, y: baseY },
+                  isAI: true,
+                  description: item.description,
+                  searchQuery: item.indeedQuery || item.careerTitle,
+                  parentId: lastNode ? lastNode.id : lastWeekId,
+                  courses: item.topCourses || [],
+                  requiredSkills: item.requiredSkills || [],
+                  connectedWeekIds: item.connectedWeekIds || completedWeeks,
+                  goldenSkills: item.goldenSkills || [],
+                  goldenTraining: item.goldenTraining || []
+                };
+              });
               setAiPaths(newPaths);
             }
           } catch (error) {
@@ -926,19 +946,15 @@ export default function App() {
                 {showGoldStars && discoveredNodes.map((node, idx) => {
                   if (idx === 0) return null;
                   const prevNode = discoveredNodes[idx - 1];
-                  const row = Math.floor(idx / 2);
-                  const col = idx % 2;
-                  const prevRow = Math.floor((idx - 1) / 2);
-                  const prevCol = (idx - 1) % 2;
-                  const fromX = 96 + prevCol * 4;
-                  const fromY = 12 + prevRow * 14;
-                  const toX = 96 + col * 4;
-                  const toY = 12 + row * 14;
+                  const fromX = prevNode.endpoint.x;
+                  const fromY = prevNode.endpoint.y;
+                  const toX = node.endpoint.x;
+                  const toY = node.endpoint.y;
                   // Curved path
                   const midX = (fromX + toX) / 2;
                   const midY = Math.min(fromY, toY) - 3;
                   const pathD = `M${fromX},${fromY} Q${midX},${midY} ${toX},${toY}`;
-                  
+
                   return (
                     <motion.path
                       key={`discovered-link-${node.id}`}
@@ -959,32 +975,27 @@ export default function App() {
                 {showGoldStars && [...discoveredNodes, ...aiPaths].map((path) => {
                   const parent = weeks.find(w => w.id === path.parentId) || discoveredNodes.find(d => d.id === path.parentId);
                   if (!parent) return null;
-                  
+
                   // Get correct X/Y for parent (might be a week or another path)
                   const fromX = (parent as any).position ? (parent as any).position.x : (parent as any).endpoint.x;
                   const fromY = (parent as any).position ? (parent as any).position.y : (parent as any).endpoint.y;
-                  
-                  // For Discovered nodes, use wrapped positioning to stay on screen
+
                   const isDiscovered = discoveredNodes.find(d => d.id === path.id);
-                  const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                  const row = Math.floor(discoveryIndex / 3);
-                  const col = discoveryIndex % 3;
-                  // Position discovered nodes further right (88-98%) to avoid overlap with curriculum weeks
-                  const toX = isDiscovered ? (88 + col * 4) : Math.min(path.endpoint.x, 80);
-                  const toY = isDiscovered ? (15 + row * 10) : path.endpoint.y;
+                  const toX = isDiscovered ? path.endpoint.x : Math.min(path.endpoint.x, 80);
+                  const toY = isDiscovered ? path.endpoint.y : path.endpoint.y;
 
                   return (
                     <g key={`ai-road-group-${path.id}`}>
                       {/* Main connection line from parent to path - curved */}
-                      <motion.path 
-                        key={`ai-road-${path.id}`} 
+                      <motion.path
+                        key={`ai-road-${path.id}`}
                         d={`M${fromX},${fromY} Q${(fromX + toX) / 2},${Math.min(fromY, toY) - 6} ${toX},${toY}`}
                         stroke={isDiscovered ? "#fbbf24a0" : "#fbbf2460"}
                         strokeWidth={isDiscovered ? "0.5" : "0.3"}
                         strokeLinecap="round"
                         fill="none"
                         strokeDasharray={isDiscovered ? "0" : "3,2"}
-                        initial={{ pathLength: 0, opacity: 0 }} 
+                        initial={{ pathLength: 0, opacity: 0 }}
                         animate={{ pathLength: 1, opacity: isDiscovered ? 0.7 : 0.4 }}
                         transition={{ duration: 0.6 }}
                       />
@@ -996,7 +1007,7 @@ export default function App() {
                         const midX = (toX + week.position.x) / 2;
                         const midY = Math.min(toY, week.position.y) - 4;
                         const pathD = `M${toX},${toY} Q${midX},${midY} ${week.position.x},${week.position.y}`;
-                        
+
                         return (
                           <motion.path
                             key={`path-week-${path.id}-${weekId}`}
@@ -1218,33 +1229,59 @@ export default function App() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+
+                      // Compute the stable grid endpoint ONCE (outside setState so both updaters see the same value)
+                      const discoveryIndex = discoveredNodes.length;
+                      const row = Math.floor(discoveryIndex / 2);
+                      const col = discoveryIndex % 2;
+                      const endpoint = {
+                        x: Math.min(94 + col * 5, 98),
+                        y: Math.min(10 + row * 16, 90)
+                      };
+
                       // First discovery - add to discovered nodes
-                      setDiscoveredNodes(prev => [...prev, path]);
+                      setDiscoveredNodes(prev => [...prev, { ...path, endpoint }]);
                       setAiPaths([]);
-                      setLastCombo(""); 
-                      
-                      // Create GOLDEN SKILL NODES on the map - like week bubbles but gold
-                      if (path.goldenSkills && path.goldenSkills.length > 0) {
-                        const newGoldenNodes: GoldenSkillNode[] = path.goldenSkills.map((skill, idx) => ({
-                          id: `golden-${path.id}-${idx}`,
-                          name: skill,
-                          parentPathId: path.id,
-                          position: { 
-                            // Position spread out to avoid overcrowding
-                            x: path.endpoint.x + 10 + (idx % 3) * 6, 
-                            y: path.endpoint.y + (idx * 12) - (path.goldenSkills!.length * 4)
-                          },
-                          training: path.goldenTraining?.find(t => t.skill === skill) 
-                            ? { 
-                                course: path.goldenTraining.find(t => t.skill === skill)!.course,
-                                platform: path.goldenTraining.find(t => t.skill === skill)!.platform,
-                                url: path.goldenTraining.find(t => t.skill === skill)!.url
-                              } 
-                            : undefined,
-                          isCompleted: false
-                        }));
-                        setGoldenSkillNodes(prev => [...prev, ...newGoldenNodes]);
-                      }
+                      setLastCombo("");
+
+                      // Create GOLDEN SKILL NODES on the map
+                      setGoldenSkillNodes(prev => {
+                        if (!path.goldenSkills || path.goldenSkills.length === 0) return prev;
+                        const newNodes: GoldenSkillNode[] = [];
+                        path.goldenSkills.forEach((skill, idx) => {
+                          // Start in a small fan below-right of the parent endpoint
+                          let gx = endpoint.x + 3 + (idx % 2) * 4;
+                          let gy = endpoint.y + 6 + Math.floor(idx / 2) * 9;
+                          // Push away from every already-placed node (prev + newNodes in this batch)
+                          for (const n of [...prev, ...newNodes]) {
+                            const dx = gx - n.position.x;
+                            const dy = gy - n.position.y;
+                            const d = Math.sqrt(dx * dx + dy * dy);
+                            if (d < 10 && d > 0) {
+                              gy += (10 - d) * (dy / d || 1);
+                              gx += (10 - d) * (dx / d || 0) * 0.5;
+                            }
+                          }
+                          // Clamp inside viewport
+                          gx = Math.max(78, Math.min(98, gx));
+                          gy = Math.max(5, Math.min(92, gy));
+                          newNodes.push({
+                            id: `golden-${path.id}-${idx}`,
+                            name: skill,
+                            parentPathId: path.id,
+                            position: { x: gx, y: gy },
+                            training: path.goldenTraining?.find(t => t.skill === skill)
+                              ? {
+                                  course: path.goldenTraining.find(t => t.skill === skill)!.course,
+                                  platform: path.goldenTraining.find(t => t.skill === skill)!.platform,
+                                  url: path.goldenTraining.find(t => t.skill === skill)!.url
+                                }
+                              : undefined,
+                            isCompleted: false
+                          });
+                        });
+                        return [...prev, ...newNodes];
+                      });
                     }}
                   >
                     <div 
@@ -1267,20 +1304,16 @@ export default function App() {
               
               {/* Discovered Nodes (gold stars) - only visible when showGoldStars is true */}
               {showGoldStars && discoveredNodes.map((path) => {
-                const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                // Spread discovered nodes with more spacing - 2 per row
-                const row = Math.floor(discoveryIndex / 2);
-                const col = discoveryIndex % 2;
-                // Position discovered nodes further right (96-102%) with more vertical spacing
-                const xPos = 96 + col * 4;
-                const yPos = 12 + row * 14;
-                
+                // Use the stored endpoint so SVG lines and rendered positions stay in sync
+                const xPos = path.endpoint.x;
+                const yPos = path.endpoint.y;
+
                 return (
-                  <motion.button 
-                    key={path.id} 
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50" 
-                    style={{ left: `${xPos}%`, top: `${yPos}%` }} 
-                    initial={{ scale: 0, opacity: 0 }} 
+                  <motion.button
+                    key={path.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50"
+                    style={{ left: `${xPos}%`, top: `${yPos}%` }}
+                    initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.25, y: -3 }}
                     whileTap={{ scale: 0.95 }}
