@@ -5,7 +5,7 @@ An AI-powered career roadmap app for Pursuit program students to track their lea
 Run & Operate
 
 Frontend: cd frontend && npm run dev → port 5000
-Backend: cd backend && npm run dev → port 3001
+Backend: cd backend && npm run dev → port 3000
 Build backend: cd backend && npm run build
 Required env vars: GEMINI_API_KEY (in backend/.env for AI career path generation)
 Stack
