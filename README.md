@@ -1,59 +1,52 @@
-# Pursuit-RoadMap
-In Pursuit (Pursuit-Roadmap)
-Transforming Curriculum Uncertainty into Clear Career Trajectories.
+Pursuit Roadmap (In Pursuit)
 
-📌 Overview
-In Pursuit is a dynamic career-pathing and trajectory application designed specifically for builders navigating technical bootcamps and intensive developer programs.
+An AI-powered career roadmap app for Pursuit program students to track their learning journey, discover career paths, and get AI-generated trajectory insights.
 
-In every fast-paced learning environment, a large percentage of builders experience the "first-two-weeks fog"—getting flooded with syntax, frameworks, and logic, yet asking: "What type of job can I actually get with this?"
+Run & Operate
 
-In Pursuit bridges the gap between learning code and building a career. By mapping prior skills, experience, and real-time curriculum progress to industry job titles, the platform provides builders with a live, visual trajectory of their professional growth—replacing doubt with clarity, courage, and optimism.
+Frontend: cd frontend && npm run dev → port 5000
+Backend: cd backend && npm run dev → port 3001
+Build backend: cd backend && npm run build
+Required env vars: GEMINI_API_KEY (in backend/.env for AI career path generation)
+Stack
 
-🔥 Key Features
-🎯 Skill-to-Career Trajectory Mapping
-Visualizes how cumulative technical skills gained week-by-week combine to unlock specific tech roles and job titles.
-💼 Prior Experience Integration
-Allows builders to input past professional backgrounds and non-traditional experience, overlaying it with their current curriculum to build a personalized career bridge.
-📊 Real-Time Career & Technical Dashboard
-Provides a live snapshot of current technical proficiency, upcoming milestones, and target job readiness.
-🧠 Skill Gap & Job Requirement Insights
-Shows exact job possibilities at any point in the learning journey and highlights the precise competencies required to unlock the next level.
-🚀 Purpose-Driven Progress
-Eliminates the "Where am I going?" anxiety by demonstrating the direct connection between daily practice and long-term career goals.
-🛠️ Tech Stack & Architecture
-Frontend: React / Modern Web Dashboard (UI/UX optimized for trajectory visualization)
-Backend: Node.js / Python REST API
-Data & Matching Engine: Skill-to-role taxonomy mapping logic
-Version Control: Git & GitHub
-🚀 Getting Started
-Prerequisites
-Node.js (v18.0 or higher)
-Python 3.10+
-Git
-Installation
-Clone the repository:
-Bash
-git clone https://github.com/your-username/pursuit-roadmap.git
-cd pursuit-roadmap
-Install dependencies:
-Bash
-npm install
-Set up environment variables:
-Create a .env file in the root directory:
-Code snippet
-PORT=5000
-DATABASE_URL=your_database_connection_string
-Run the development server:
-Bash
-npm run dev
-🛣️ Roadmap
-[x] Initial conceptualization & pitch deck structure
-[x] Core script & Loom presentation outline
-[ ] Interactive UI layout for trajectory matching
-[ ] Integration with curriculum milestones
-[ ] Dynamic job market data & skill gap analytics
-💡 Vision Statement
-"We stop guessing and start building. Because when you can see the destination clearly, the grind doesn't just feel like work—it feels like progress."
+Frontend: React 18, Vite 6, Tailwind CSS 4, MUI, Radix UI, Framer Motion, React Router 7
+Backend: Node.js 18+, Express 5, TypeScript, tsx (dev), Google Generative AI (Gemini)
+Runtime: Node.js >= 18
+Where things live
 
-pursuit-roadmap
-Create technical documentation, pitch decks, README files, or presentation scripts for the 'In Pursuit' career trajectory roadmap platform developed for software engineering and AI-native builders at Pursuit. Use when the user requests documentation, README files, script refinements, or presentation materials related to the Pursuit Roadmap / In Pursuit project.
+frontend/src/App.tsx — main app (login, onboarding, tutorial, roadmap, log views)
+frontend/src/pages/ — additional pages (CyberSkillRoad, Login, Paths, Roadmap)
+backend/src/index.ts — Express server entry point
+backend/src/services/gemini.service.ts — Gemini AI integration
+backend/src/services/trajectory.service.ts — prime-based skill weighting
+frontend/.env — VITE_API_URL=http://localhost:3001
+Architecture decisions
+
+Backend runs on port 3001 (not 3000) to avoid conflicts with frontend dev defaults
+Frontend uses VITE_API_URL env var to point at backend; falls back to http://localhost:3000
+Trajectory engine uses prime-number-based weighting for skill combination scoring
+Login is restricted to @pursuit.org email addresses (client-side check only)
+No database — all state is in-memory/React state (resets on refresh)
+Product
+
+Login screen with @pursuit.org email gate
+Onboarding: user enters prior skills
+Interactive 8-week curriculum roadmap with completion tracking
+AI-generated career path branches (via Gemini) based on completed weeks + prior skills
+Journey Log with AI tutor chat (stub — future feature)
+Dark/light theme toggle
+User preferences
+
+Populate as you build
+
+Gotchas
+
+GEMINI_API_KEY must be set in backend environment for AI features to work
+The base in vite.config.ts was changed from /pursuit_roadmap/ to / for Replit hosting
+Backend reads .env via dotenv; make sure backend/.env exists with the key
+Pointers
+
+Gemini AI docs: https://ai.google.dev/
+Vite config: frontend/vite.config.ts
+Deployment guide: DEPLOYMENT.md
