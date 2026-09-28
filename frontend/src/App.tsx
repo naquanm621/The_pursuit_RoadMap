@@ -170,6 +170,42 @@ export default function App() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // JD Match State
+  const [showJdModal, setShowJdModal] = useState(false);
+  const [jdText, setJdText] = useState("");
+  const [jdResult, setJdResult] = useState<{
+    matchScore: number;
+    matchedSkills: string[];
+    missingSkills: string[];
+    suggestedPath: string;
+    recommendation: string;
+  } | null>(null);
+  const [isJdLoading, setIsJdLoading] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+
+  const handleMatchJd = async () => {
+    if (!jdText.trim()) return;
+    setIsJdLoading(true);
+    setJdResult(null);
+    try {
+      const allSkills = [
+        ...completedWeeks.map(id => weeks.find(w => w.id === id)?.skill).filter(Boolean),
+        ...previousSkills
+      ] as string[];
+      const res = await fetch('/api/match-jd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobDescription: jdText, skills: allSkills })
+      });
+      const data = await res.json();
+      setJdResult(data);
+    } catch {
+      setJdResult({ matchScore: 0, matchedSkills: [], missingSkills: [], suggestedPath: '', recommendation: 'Failed to analyze. Please try again.' });
+    } finally {
+      setIsJdLoading(false);
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
@@ -224,7 +260,7 @@ export default function App() {
       const allSkills = [...previousSkills, ...curriculumSkills];
       
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/trajectory`, {
+        const response = await fetch(`/api/trajectory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ skills: allSkills }),
@@ -271,7 +307,7 @@ export default function App() {
               trajectoryContext = `${lastNode.name} Specialist`;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/career-path`, {
+            const response = await fetch(`/api/career-path`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -287,23 +323,43 @@ export default function App() {
               const lastNode = discoveredNodes[discoveredNodes.length - 1];
               const lastWeekId = completedWeeks[completedWeeks.length - 1];
               
-              const newPaths = data.map((item: any, idx: number) => ({
-                id: `ai-${Date.now()}-${idx}`,
-                name: item.careerTitle,
-                requiredWeeks: [...completedWeeks],
-                additionalSkills: [item.bridgeSuggestion, item.leapSuggestion],
-                color: '#fbbf24',
-                endpoint: { x: Math.min(item.x || 92, 95), y: Math.max(15, Math.min(85, item.y || (15 + idx * 7))) },
-                isAI: true,
-                description: item.description,
-                searchQuery: item.indeedQuery || item.careerTitle,
-                parentId: lastNode ? lastNode.id : lastWeekId,
-                courses: item.topCourses || [],
-                requiredSkills: item.requiredSkills || [],
-                connectedWeekIds: item.connectedWeekIds || completedWeeks,
-                goldenSkills: item.goldenSkills || [],
-                goldenTraining: item.goldenTraining || []
-              }));
+              // Prevent overlapping AI path endpoints by spreading them in a grid
+              const minSpacing = 14;
+              const placedEndpoints: { x: number; y: number }[] = [];
+              const newPaths = data.map((item: any, idx: number) => {
+                let baseX = Math.min(item.x || 88, 92);
+                let baseY = Math.max(12, Math.min(88, item.y || (12 + idx * 14)));
+                // Shift away from already-placed endpoints to avoid overlap
+                for (const ep of placedEndpoints) {
+                  const dx = baseX - ep.x;
+                  const dy = baseY - ep.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < minSpacing && dist > 0) {
+                    baseY += (minSpacing - dist) * (dy / dist || 1);
+                    baseX += (minSpacing - dist) * (dx / dist || 0) * 0.5;
+                  }
+                }
+                baseX = Math.max(82, Math.min(96, baseX));
+                baseY = Math.max(8, Math.min(92, baseY));
+                placedEndpoints.push({ x: baseX, y: baseY });
+                return {
+                  id: `ai-${Date.now()}-${idx}`,
+                  name: item.careerTitle,
+                  requiredWeeks: [...completedWeeks],
+                  additionalSkills: [item.bridgeSuggestion, item.leapSuggestion],
+                  color: '#fbbf24',
+                  endpoint: { x: baseX, y: baseY },
+                  isAI: true,
+                  description: item.description,
+                  searchQuery: item.indeedQuery || item.careerTitle,
+                  parentId: lastNode ? lastNode.id : lastWeekId,
+                  courses: item.topCourses || [],
+                  requiredSkills: item.requiredSkills || [],
+                  connectedWeekIds: item.connectedWeekIds || completedWeeks,
+                  goldenSkills: item.goldenSkills || [],
+                  goldenTraining: item.goldenTraining || []
+                };
+              });
               setAiPaths(newPaths);
             }
           } catch (error) {
@@ -620,6 +676,25 @@ export default function App() {
           </div>
         </div>
         
+        {/* Color Key */}
+        <div className={`hidden md:flex items-center gap-3 px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-white/80 border-slate-200 shadow-sm'}`}>
+          <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Key</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 border border-blue-300/60 shadow-[0_0_6px_rgba(59,130,246,0.6)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>Core</span>
+          </div>
+          <div className={`h-4 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`}></div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-white border border-white/60 shadow-[0_0_6px_rgba(255,255,255,0.5)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-white/70' : 'text-slate-600'}`}>Trajectory</span>
+          </div>
+          <div className={`h-4 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`}></div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-amber-400 border border-amber-300/60 shadow-[0_0_6px_rgba(251,191,36,0.6)]"></div>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-amber-300' : 'text-amber-600'}`}>Path</span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           {/* Theme Toggle */}
           <button
@@ -872,19 +947,15 @@ export default function App() {
                 {showGoldStars && discoveredNodes.map((node, idx) => {
                   if (idx === 0) return null;
                   const prevNode = discoveredNodes[idx - 1];
-                  const row = Math.floor(idx / 2);
-                  const col = idx % 2;
-                  const prevRow = Math.floor((idx - 1) / 2);
-                  const prevCol = (idx - 1) % 2;
-                  const fromX = 96 + prevCol * 4;
-                  const fromY = 12 + prevRow * 14;
-                  const toX = 96 + col * 4;
-                  const toY = 12 + row * 14;
+                  const fromX = prevNode.endpoint.x;
+                  const fromY = prevNode.endpoint.y;
+                  const toX = node.endpoint.x;
+                  const toY = node.endpoint.y;
                   // Curved path
                   const midX = (fromX + toX) / 2;
                   const midY = Math.min(fromY, toY) - 3;
                   const pathD = `M${fromX},${fromY} Q${midX},${midY} ${toX},${toY}`;
-                  
+
                   return (
                     <motion.path
                       key={`discovered-link-${node.id}`}
@@ -905,59 +976,30 @@ export default function App() {
                 {showGoldStars && [...discoveredNodes, ...aiPaths].map((path) => {
                   const parent = weeks.find(w => w.id === path.parentId) || discoveredNodes.find(d => d.id === path.parentId);
                   if (!parent) return null;
-                  
+
                   // Get correct X/Y for parent (might be a week or another path)
                   const fromX = (parent as any).position ? (parent as any).position.x : (parent as any).endpoint.x;
                   const fromY = (parent as any).position ? (parent as any).position.y : (parent as any).endpoint.y;
-                  
-                  // For Discovered nodes, use wrapped positioning to stay on screen
+
                   const isDiscovered = discoveredNodes.find(d => d.id === path.id);
-                  const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                  const row = Math.floor(discoveryIndex / 3);
-                  const col = discoveryIndex % 3;
-                  // Position discovered nodes further right (88-98%) to avoid overlap with curriculum weeks
-                  const toX = isDiscovered ? (88 + col * 4) : Math.min(path.endpoint.x, 80);
-                  const toY = isDiscovered ? (15 + row * 10) : path.endpoint.y;
+                  const toX = isDiscovered ? path.endpoint.x : Math.min(path.endpoint.x, 80);
+                  const toY = isDiscovered ? path.endpoint.y : path.endpoint.y;
 
                   return (
                     <g key={`ai-road-group-${path.id}`}>
                       {/* Main connection line from parent to path - curved */}
-                      <motion.path 
-                        key={`ai-road-${path.id}`} 
+                      <motion.path
+                        key={`ai-road-${path.id}`}
                         d={`M${fromX},${fromY} Q${(fromX + toX) / 2},${Math.min(fromY, toY) - 6} ${toX},${toY}`}
                         stroke={isDiscovered ? "#fbbf24a0" : "#fbbf2460"}
                         strokeWidth={isDiscovered ? "0.5" : "0.3"}
                         strokeLinecap="round"
                         fill="none"
                         strokeDasharray={isDiscovered ? "0" : "3,2"}
-                        initial={{ pathLength: 0, opacity: 0 }} 
+                        initial={{ pathLength: 0, opacity: 0 }}
                         animate={{ pathLength: 1, opacity: isDiscovered ? 0.7 : 0.4 }}
                         transition={{ duration: 0.6 }}
                       />
-                      {/* Connection lines from path to its connected weeks - curved and subtle */}
-                      {path.connectedWeekIds?.slice(0, 3).map((weekId, idx) => {
-                        const week = weeks.find(w => w.id === weekId);
-                        if (!week) return null;
-                        // Curved path
-                        const midX = (toX + week.position.x) / 2;
-                        const midY = Math.min(toY, week.position.y) - 4;
-                        const pathD = `M${toX},${toY} Q${midX},${midY} ${week.position.x},${week.position.y}`;
-                        
-                        return (
-                          <motion.path
-                            key={`path-week-${path.id}-${weekId}`}
-                            d={pathD}
-                            stroke={isDiscovered ? "#fbbf2460" : "#60a5fa30"}
-                            strokeWidth={isDiscovered ? "0.4" : "0.25"}
-                            strokeLinecap="round"
-                            fill="none"
-                            strokeDasharray={isDiscovered ? "2,2" : "2,3"}
-                            initial={{ opacity: 0, pathLength: 0 }}
-                            animate={{ opacity: isDiscovered ? 0.5 : 0.25, pathLength: 1 }}
-                            transition={{ delay: idx * 0.1, duration: 0.5 }}
-                          />
-                        );
-                      })}
                     </g>
                   );
                 })}
@@ -1038,63 +1080,6 @@ export default function App() {
                   );
                 })}
                 
-                {/* Golden paths connecting to core curriculum weeks - very subtle */}
-                {goldenSkillNodes.slice(0, 4).map((node, idx) => {
-                  const parentPath = discoveredNodes.find(p => p.id === node.parentPathId);
-                  if (!parentPath || !parentPath.connectedWeekIds) return null;
-                  
-                  return parentPath.connectedWeekIds.slice(0, 2).map((weekId, connIdx) => {
-                    const week = weeks.find(w => w.id === weekId);
-                    if (!week) return null;
-                    
-                    // Curved path
-                    const midX = (node.position.x + week.position.x) / 2;
-                    const midY = Math.min(node.position.y, week.position.y) - 2;
-                    const pathD = `M${node.position.x},${node.position.y} Q${midX},${midY} ${week.position.x},${week.position.y}`;
-                    
-                    return (
-                      <motion.path
-                        key={`golden-to-week-${node.id}-${weekId}-${connIdx}`}
-                        d={pathD}
-                        stroke="#fbbf2430"
-                        strokeWidth="0.25"
-                        strokeLinecap="round"
-                        fill="none"
-                        strokeDasharray="1,2"
-                        initial={{ pathLength: 0, opacity: 0 }}
-                        animate={{ pathLength: 1, opacity: 0.35 }}
-                        transition={{ duration: 0.5, delay: idx * 0.1 + connIdx * 0.05 }}
-                      />
-                    );
-                  });
-                })}
-                
-                {/* Golden paths connecting sequential skill nodes - curved */}
-                {goldenSkillNodes.map((node, idx) => {
-                  if (idx === 0) return null;
-                  const prevNode = goldenSkillNodes[idx - 1];
-                  if (prevNode.parentPathId !== node.parentPathId) return null;
-                  
-                  // Curved path between skill nodes
-                  const midX = (prevNode.position.x + node.position.x) / 2;
-                  const midY = (prevNode.position.y + node.position.y) / 2 - 2;
-                  const pathD = `M${prevNode.position.x},${prevNode.position.y} Q${midX},${midY} ${node.position.x},${node.position.y}`;
-                  
-                  return (
-                    <motion.path
-                      key={`golden-skill-line-${node.id}`}
-                      d={pathD}
-                      stroke="#fbbf2480"
-                      strokeWidth="0.4"
-                      strokeLinecap="round"
-                      fill="none"
-                      strokeDasharray="2,2"
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 0.6 }}
-                      transition={{ duration: 0.5, delay: idx * 0.1 }}
-                    />
-                  );
-                })}
               </AnimatePresence>
             </svg>
 
@@ -1112,37 +1097,41 @@ export default function App() {
                   whileHover={{ scale: 1.2 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => {
-                    setGoldenSkillNodes(prev => prev.map(n => 
-                      n.id === node.id ? { ...n, isCompleted: !n.isCompleted } : n
-                    ));
+                    setSelectedSkillId(node.parentPathId);
                   }}
                 >
-                  <div 
-                    className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${node.isCompleted ? 'shadow-lg shadow-amber-500/50' : ''}`}
+                  <div
+                    className={`w-7 h-7 md:w-9 md:h-9 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative ${node.isCompleted ? 'shadow-lg shadow-amber-500/50' : ''}`}
                     style={{
                       borderColor: node.isCompleted ? '#fbbf24' : 'rgba(245,158,11,0.5)',
-                      background: node.isCompleted 
-                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' 
-                        : 'linear-gradient(135deg, rgba(17,24,39,0.9) 0%, rgba(30,41,59,0.8) 100%)',
-                      boxShadow: node.isCompleted 
-                        ? '0 0 20px rgba(251,191,36,0.7), 0 0 40px rgba(251,191,36,0.4), inset 0 1px 2px rgba(255,255,255,0.3)' 
-                        : '0 0 10px rgba(245,158,11,0.3), inset 0 1px 2px rgba(255,255,255,0.1)'
+                      background: node.isCompleted
+                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                        : 'linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(30,41,59,0.9) 100%)',
+                      boxShadow: node.isCompleted
+                        ? '0 0 20px rgba(251,191,36,0.7), 0 0 40px rgba(251,191,36,0.4), inset 0 1px 2px rgba(255,255,255,0.3)'
+                        : '0 0 12px rgba(245,158,11,0.4), inset 0 1px 2px rgba(255,255,255,0.1)'
                     }}
                   >
-                    <span className="text-[9px] md:text-[11px] drop-shadow-[0_0_4px_rgba(251,191,36,0.8)]">★</span>
-                    {/* Pulsing glow for completed */}
+                    <span className="text-[10px] md:text-[12px] drop-shadow-[0_0_4px_rgba(251,191,36,0.8)]">★</span>
                     {node.isCompleted && (
                       <motion.div
                         className="absolute inset-0 rounded-full border-2 border-amber-300"
                         initial={{ scale: 1, opacity: 0.5 }}
-                        animate={{ scale: 1.4, opacity: 0 }}
+                        animate={{ scale: 1.5, opacity: 0 }}
                         transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
                       />
                     )}
                   </div>
-                  <div className={`absolute top-full mt-1.5 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full max-w-[70px] overflow-hidden text-ellipsis transition-colors border backdrop-blur-sm ${node.isCompleted ? 'text-amber-300 bg-amber-950/80 border-amber-500/50' : 'text-slate-400 bg-black/70 border-slate-700'}`}>
+                  {/* Label appears on hover only */}
+                  <div className={`absolute top-full mt-2 text-[7px] md:text-[8px] font-bold whitespace-nowrap px-2.5 py-1 rounded-full border opacity-0 group-hover:opacity-100 transition-opacity duration-200 backdrop-blur-md pointer-events-none z-50 max-w-[90px] overflow-hidden text-ellipsis shadow-lg ${node.isCompleted ? 'text-amber-200 bg-amber-950/90 border-amber-500/60' : 'text-slate-300 bg-slate-900/90 border-slate-600'}`}>
                     {node.name}
                   </div>
+                  {/* Training tooltip on hover */}
+                  {node.training && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[6px] md:text-[7px] font-bold whitespace-nowrap px-2 py-1 rounded-md border opacity-0 group-hover:opacity-100 transition-opacity duration-200 backdrop-blur-md pointer-events-none z-50 shadow-lg bg-blue-950/90 border-blue-500/40 text-blue-200">
+                      {node.training.platform}: {node.training.course}
+                    </div>
+                  )}
                 </motion.button>
               ))}
             </AnimatePresence>
@@ -1164,33 +1153,70 @@ export default function App() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+
+                      // Compute the stable grid endpoint ONCE (outside setState so both updaters see the same value)
+                      const discoveryIndex = discoveredNodes.length;
+                      const row = Math.floor(discoveryIndex / 3);
+                      const col = discoveryIndex % 3;
+                      const endpoint = {
+                        x: Math.min(85 + col * 6, 97),
+                        y: Math.min(12 + row * 18, 88)
+                      };
+
                       // First discovery - add to discovered nodes
-                      setDiscoveredNodes(prev => [...prev, path]);
+                      setDiscoveredNodes(prev => [...prev, { ...path, endpoint }]);
                       setAiPaths([]);
-                      setLastCombo(""); 
-                      
-                      // Create GOLDEN SKILL NODES on the map - like week bubbles but gold
-                      if (path.goldenSkills && path.goldenSkills.length > 0) {
-                        const newGoldenNodes: GoldenSkillNode[] = path.goldenSkills.map((skill, idx) => ({
-                          id: `golden-${path.id}-${idx}`,
-                          name: skill,
-                          parentPathId: path.id,
-                          position: { 
-                            // Position spread out to avoid overcrowding
-                            x: path.endpoint.x + 10 + (idx % 3) * 6, 
-                            y: path.endpoint.y + (idx * 12) - (path.goldenSkills!.length * 4)
-                          },
-                          training: path.goldenTraining?.find(t => t.skill === skill) 
-                            ? { 
-                                course: path.goldenTraining.find(t => t.skill === skill)!.course,
-                                platform: path.goldenTraining.find(t => t.skill === skill)!.platform,
-                                url: path.goldenTraining.find(t => t.skill === skill)!.url
-                              } 
-                            : undefined,
-                          isCompleted: false
-                        }));
-                        setGoldenSkillNodes(prev => [...prev, ...newGoldenNodes]);
-                      }
+                      setLastCombo("");
+
+                      // Create GOLDEN SKILL NODES on the map
+                      setGoldenSkillNodes(prev => {
+                        if (!path.goldenSkills || path.goldenSkills.length === 0) return prev;
+                        const newNodes: GoldenSkillNode[] = [];
+                        const skillCount = path.goldenSkills.length;
+                        const radius = 14;
+                        const startAngle = -Math.PI / 3; // start from upper-right
+                        const arcSpan = (2 * Math.PI) / 3; // 120 degree arc
+                        path.goldenSkills.forEach((skill, idx) => {
+                          // Radial arc placement around parent endpoint
+                          const angle = startAngle + (skillCount > 1 ? (idx / (skillCount - 1)) * arcSpan : 0);
+                          let gx = endpoint.x + Math.cos(angle) * radius;
+                          let gy = endpoint.y + Math.sin(angle) * radius;
+                          // Global collision pass against ALL golden nodes (existing + new batch)
+                          for (let iter = 0; iter < 5; iter++) {
+                            let moved = false;
+                            for (const n of [...prev, ...newNodes]) {
+                              const dx = gx - n.position.x;
+                              const dy = gy - n.position.y;
+                              const d = Math.sqrt(dx * dx + dy * dy);
+                              if (d < 15 && d > 0) {
+                                const push = (15 - d) / d;
+                                gx += dx * push * 0.6;
+                                gy += dy * push * 0.6;
+                                moved = true;
+                              }
+                            }
+                            if (!moved) break;
+                          }
+                          // Clamp inside viewport
+                          gx = Math.max(76, Math.min(98, gx));
+                          gy = Math.max(6, Math.min(90, gy));
+                          newNodes.push({
+                            id: `golden-${path.id}-${idx}`,
+                            name: skill,
+                            parentPathId: path.id,
+                            position: { x: gx, y: gy },
+                            training: path.goldenTraining?.find(t => t.skill === skill)
+                              ? {
+                                  course: path.goldenTraining.find(t => t.skill === skill)!.course,
+                                  platform: path.goldenTraining.find(t => t.skill === skill)!.platform,
+                                  url: path.goldenTraining.find(t => t.skill === skill)!.url
+                                }
+                              : undefined,
+                            isCompleted: false
+                          });
+                        });
+                        return [...prev, ...newNodes];
+                      });
                     }}
                   >
                     <div 
@@ -1213,20 +1239,16 @@ export default function App() {
               
               {/* Discovered Nodes (gold stars) - only visible when showGoldStars is true */}
               {showGoldStars && discoveredNodes.map((path) => {
-                const discoveryIndex = discoveredNodes.findIndex(d => d.id === path.id);
-                // Spread discovered nodes with more spacing - 2 per row
-                const row = Math.floor(discoveryIndex / 2);
-                const col = discoveryIndex % 2;
-                // Position discovered nodes further right (96-102%) with more vertical spacing
-                const xPos = 96 + col * 4;
-                const yPos = 12 + row * 14;
-                
+                // Use the stored endpoint so SVG lines and rendered positions stay in sync
+                const xPos = path.endpoint.x;
+                const yPos = path.endpoint.y;
+
                 return (
-                  <motion.button 
-                    key={path.id} 
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50" 
-                    style={{ left: `${xPos}%`, top: `${yPos}%` }} 
-                    initial={{ scale: 0, opacity: 0 }} 
+                  <motion.button
+                    key={path.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 group z-50"
+                    style={{ left: `${xPos}%`, top: `${yPos}%` }}
+                    initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.25, y: -3 }}
                     whileTap={{ scale: 0.95 }}
@@ -1291,12 +1313,58 @@ export default function App() {
                 transition={{ delay: 0.1 }}
                 className="h-full overflow-y-auto custom-scrollbar"
               >
-                <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2 pr-8">
-                  <Sparkles size={12} /> CAREER HORIZONS 
-                  {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>} 
-                  {isGenerating && <span className="animate-pulse">...</span>}
-                </h2>
+                <div className="flex items-center justify-between mb-3 pr-8">
+                  <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles size={12} /> CAREER HORIZONS
+                    {aiPaths.length > 0 && <span className="bg-amber-500/30 px-2 py-0.5 rounded-full text-[9px]">{aiPaths.length}</span>}
+                    {isGenerating && <span className="animate-pulse">...</span>}
+                  </h2>
+                  <button
+                    onClick={() => { setShowJdModal(true); setJdResult(null); setJdText(""); }}
+                    className="flex items-center gap-1 bg-blue-600/30 hover:bg-blue-600/60 border border-blue-500/40 text-blue-300 text-[7px] font-black uppercase px-2 py-1 rounded transition-all"
+                    title="Paste a job description to see how well your skills match"
+                  >
+                    <Search size={9} /> Match JD
+                  </button>
+                </div>
                 <div className="space-y-3">
+              {/* MY CAREER TRAJECTORY — discovered paths */}
+              {discoveredNodes.length > 0 && (
+                <div className="mb-3">
+                  <h3 className="text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                    <Briefcase size={10} /> My Career Trajectory
+                    <span className="bg-emerald-500/30 px-1.5 py-0.5 rounded-full text-[8px]">{discoveredNodes.length}</span>
+                  </h3>
+                  <div className="space-y-2">
+                    {discoveredNodes.map(path => (
+                      <motion.div
+                        key={`career-${path.id}`}
+                        id={`career-card-${path.id}`}
+                        initial={{ x: 20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className={`bg-black/60 border p-2 rounded-lg relative transition-all duration-300 ${
+                          selectedSkillId === path.id
+                            ? 'border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
+                            : 'border-emerald-500/20'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-[10px] font-bold text-white uppercase tracking-tight flex items-center gap-1.5">
+                            <Star size={10} className="text-emerald-400" />
+                            {path.name}
+                          </div>
+                        </div>
+                        <div className="text-[8px] text-slate-400 leading-relaxed line-clamp-2">{path.description}</div>
+                        <div className="flex gap-1 mt-2">
+                          <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-[7px] font-black p-1 rounded uppercase transition-colors">Indeed</button>
+                          <button onClick={() => openJobSearch('linkedin', path.searchQuery || '')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-[7px] font-black p-1 rounded uppercase transition-colors">LinkedIn</button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <AnimatePresence mode="popLayout">
                 {aiPaths.length === 0 ? (<div className="text-slate-500 text-[9px] italic text-center py-8">Waiting for skills to analyze...</div>) : (
                   aiPaths.map(path => {
@@ -1431,6 +1499,146 @@ export default function App() {
             )}
           </div>
 
+          {/* JD Match Modal */}
+          <AnimatePresence>
+            {showJdModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}
+                onClick={(e) => { if (e.target === e.currentTarget) setShowJdModal(false); }}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                  className="w-full max-w-lg bg-gray-950 border border-blue-500/30 rounded-2xl p-5 shadow-2xl shadow-blue-500/10 relative"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center">
+                        <Search size={14} className="text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-black text-white uppercase tracking-wide">Match Job Description</div>
+                        <div className="text-[9px] text-slate-500">Paste any JD — see how your skills align</div>
+                      </div>
+                    </div>
+                    <button onClick={() => setShowJdModal(false)} className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors">
+                      <X size={14} className="text-slate-400" />
+                    </button>
+                  </div>
+
+                  {/* Textarea */}
+                  {!jdResult && (
+                    <>
+                      <textarea
+                        value={jdText}
+                        onChange={e => setJdText(e.target.value)}
+                        placeholder="Paste the full job description here..."
+                        className="w-full h-44 bg-black/50 border border-slate-700 rounded-xl p-3 text-[11px] text-slate-300 placeholder-slate-600 resize-none focus:outline-none focus:border-blue-500/60 transition-colors leading-relaxed"
+                      />
+                      <button
+                        onClick={handleMatchJd}
+                        disabled={isJdLoading || !jdText.trim()}
+                        className="mt-3 w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-black uppercase tracking-widest py-2.5 rounded-xl transition-all"
+                      >
+                        {isJdLoading ? (
+                          <><span className="animate-spin inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full" /> Analyzing...</>
+                        ) : (
+                          <><Sparkles size={12} /> Analyze Match</>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Results */}
+                  {jdResult && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                      {/* Score */}
+                      <div className="flex items-center gap-4 bg-black/50 rounded-xl p-4 border border-slate-800">
+                        <div className="relative w-16 h-16 shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                            <motion.circle
+                              cx="18" cy="18" r="15.9" fill="none"
+                              stroke={jdResult.matchScore >= 70 ? '#22c55e' : jdResult.matchScore >= 40 ? '#f59e0b' : '#ef4444'}
+                              strokeWidth="3" strokeLinecap="round"
+                              strokeDasharray={`${jdResult.matchScore} 100`}
+                              initial={{ strokeDasharray: '0 100' }}
+                              animate={{ strokeDasharray: `${jdResult.matchScore} 100` }}
+                              transition={{ duration: 1, ease: 'easeOut' }}
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm font-black text-white">{jdResult.matchScore}%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Match Score</div>
+                          <div className={`text-sm font-black ${jdResult.matchScore >= 70 ? 'text-green-400' : jdResult.matchScore >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {jdResult.matchScore >= 70 ? 'Strong Match' : jdResult.matchScore >= 40 ? 'Partial Match' : 'Gap to Close'}
+                          </div>
+                          {jdResult.suggestedPath && (
+                            <div className="text-[8px] text-slate-400 mt-1">Closest path: <span className="text-blue-400 font-bold">{jdResult.suggestedPath}</span></div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills you have */}
+                      {jdResult.matchedSkills.length > 0 && (
+                        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-green-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <span>✓</span> Skills You Have ({jdResult.matchedSkills.length})
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {jdResult.matchedSkills.map((s, i) => (
+                              <span key={i} className="text-[8px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full font-bold">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Skills to build */}
+                      {jdResult.missingSkills.length > 0 && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <span>→</span> Skills to Build ({jdResult.missingSkills.length})
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {jdResult.missingSkills.map((s, i) => (
+                              <span key={i} className="text-[8px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full font-bold">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recommendation */}
+                      {jdResult.recommendation && (
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                          <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Coach's Take</div>
+                          <p className="text-[10px] text-slate-300 leading-relaxed">{jdResult.recommendation}</p>
+                        </div>
+                      )}
+
+                      {/* Try another */}
+                      <button
+                        onClick={() => { setJdResult(null); setJdText(""); }}
+                        className="w-full text-[9px] font-bold text-slate-400 hover:text-slate-300 uppercase py-1.5 border border-slate-800 hover:border-slate-700 rounded-xl transition-all"
+                      >
+                        Try Another JD
+                      </button>
+                    </motion.div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {isTrajectoryPanelOpen && (
             <motion.div 
               initial={{ opacity: 0 }}
@@ -1443,7 +1651,7 @@ export default function App() {
                 const isUnlocked = progress === 100;
                 return (
                   <div key={path.id} className="bg-slate-900/50 border border-slate-800 p-2.5 rounded-lg">
-                    <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
+                    <div className="flex justify-between items-center mb-1"><span className="text-[8px] md:text-[9px] font-bold text-white uppercase">{path.name}</span><span className="text-[8px] text-slate-500">{Math.round(progress)}%</span></div>
                     <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-2"><motion.div className="h-full" style={{ backgroundColor: path.color }} animate={{ width: `${progress}%` }} /></div>
                     {isUnlocked && (<div className="flex gap-1">
                       <button onClick={() => openJobSearch('indeed', path.searchQuery || '')} className="flex-1 bg-indigo-600/40 hover:bg-indigo-600 text-[6px] font-black p-1 rounded uppercase transition-colors">Indeed</button>

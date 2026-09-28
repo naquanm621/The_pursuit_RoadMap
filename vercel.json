@@ -1,4 +1,12 @@
 {
-  "builds": [{ "src": "dist/index.js", "use": "@vercel/node" }],
-  "outputDirectory": "dist"
+  "version": 2,
+  "framework": "vite",
+  "installCommand": "npm install --prefix frontend && npm install --prefix backend",
+  "buildCommand": "npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
 }

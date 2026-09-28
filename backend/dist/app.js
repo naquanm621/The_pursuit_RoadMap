@@ -2,15 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { GeminiService } from './services/gemini.service.js';
 import { TrajectoryService } from './services/trajectory.service.js';
 dotenv.config();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const app = express();
-const port = process.env.PORT || 3001;
+export const app = express();
 app.use(cors());
 app.use(express.json());
 // Trajectory Engine - Prime-Based Weighting System
@@ -47,6 +42,20 @@ app.post('/api/career-path', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate career path' });
     }
 });
+// Job Description Match Endpoint
+app.post('/api/match-jd', async (req, res) => {
+    try {
+        const { jobDescription, skills } = req.body;
+        if (!jobDescription || typeof jobDescription !== 'string') {
+            return res.status(400).json({ error: 'jobDescription is required' });
+        }
+        const result = await GeminiService.matchJobDescription(jobDescription, skills || []);
+        res.json(result);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to analyze job description' });
+    }
+});
 // Journey Log Chat Endpoint
 app.post('/api/chat', async (req, res) => {
     try {
@@ -71,17 +80,4 @@ app.post('/api/process-curriculum', async (req, res) => {
         res.status(500).json({ error: 'Failed to process screenshots' });
     }
 });
-// Serve frontend static files in production
-const frontendDist = path.join(__dirname, '../../frontend/dist');
-if (fs.existsSync(frontendDist)) {
-    app.use(express.static(frontendDist));
-    // SPA fallback — serve index.html for any non-API route
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(frontendDist, 'index.html'));
-    });
-    console.log(`Serving frontend from ${frontendDist}`);
-}
-app.listen(port, () => {
-    console.log(`Backend listening at http://localhost:${port}`);
-});
-//# sourceMappingURL=index.js.map
+//# sourceMappingURL=app.js.map
