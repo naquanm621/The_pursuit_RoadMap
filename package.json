@@ -2,9 +2,11 @@
   "name": "pursuit-roadmap",
   "version": "1.0.0",
   "scripts": {
-    "install": "cd backend && npm ci",
-    "build": "cd backend && npm run build",
-    "start": "cd backend && npm start"
+    "install": "npm install --prefix frontend && npm install --prefix backend",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "start": "npm --prefix backend start"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -3,12 +3,27 @@
 ## Overview
 
 This app has two parts:
-1. **Frontend** - React app (deploys to GitHub Pages)
-2. **Backend** - Node.js/Express API (deploys to Render or Railway)
+1. **Frontend** - React/Vite app
+2. **Backend** - Node.js/Express API with Gemini
+
+The repository now includes a Vercel configuration that deploys both parts
+together: the frontend is served from `frontend/dist`, and `/api/*` is handled
+by explicit Express serverless functions in `api/`.
+
+## Option 1: Deploy the whole app to Vercel
+
+1. Import the GitHub repository into [Vercel](https://vercel.com).
+2. Leave the project root as the repository root.
+3. Vercel will use `vercel.json` for the install and build commands.
+4. Add the environment variable `GEMINI_API_KEY`.
+5. Deploy. The frontend and API will share the same domain.
+
+No `VITE_API_URL` value is required for the combined deployment. The frontend
+uses same-origin `/api/*` requests.
 
 ---
 
-## Option 1: Deploy to Render (Recommended - Free)
+## Option 2: Deploy to Render (Separate backend)
 
 ### Step 1: Deploy Backend
 
@@ -56,7 +71,7 @@ git push origin main
 
 ---
 
-## Option 2: Deploy to Railway (Alternative)
+## Option 3: Deploy to Railway (Separate backend)
 
 ### Step 1: Deploy Backend
 
@@ -111,10 +126,12 @@ Frontend will use `http://localhost:3000` automatically.
 - `railway.json` - Railway configuration
 - `backend/Procfile` - Heroku/Render process file
 - `frontend/.env.example` - Environment variable template
+- `vercel.json` - Combined Vercel frontend/API configuration
+- `api/` - Vercel serverless entrypoints for the Express API routes
 
 ## Important Notes
 
-⚠️ **GitHub Pages is FREE but STATIC only** - That's why we need a separate backend host
+⚠️ **GitHub Pages is FREE but STATIC only** - Use the Vercel setup when the frontend and backend should share one deployment
 
 ⚠️ **Render/Railway FREE tiers**:
 - Spin down after 15 min of inactivity (cold start ~30 seconds)
