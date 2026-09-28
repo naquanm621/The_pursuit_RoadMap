@@ -5,3 +5,4 @@ backend/dist
 frontend/dist
 *.log
 .DS_Store
+
