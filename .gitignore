@@ -1,5 +1,9 @@
 backend/node_modules
 backend/dist
 backend/.env
+backend/src/**/*.js
+backend/src/**/*.js.map
+backend/src/**/*.d.ts
+backend/src/**/*.d.ts.map
 frontend/.env
 .vercel
