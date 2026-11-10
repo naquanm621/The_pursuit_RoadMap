@@ -4,7 +4,20 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper function for API calls
-export const apiFetch = (endpoint: string, options?: RequestInit) => {
+export const apiFetch = async (endpoint: string, options?: RequestInit) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  return fetch(url, options);
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data?.error || message;
+    } catch {
+      // Use the status message when the response is not JSON.
+    }
+    throw new Error(message);
+  }
+
+  return response;
 };

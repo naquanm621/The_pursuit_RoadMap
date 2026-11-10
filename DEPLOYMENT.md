@@ -131,6 +131,8 @@ Frontend will use `http://localhost:3000` automatically.
 
 ## Important Notes
 
+The old `backend/.env` was committed to Git history. Revoke that Gemini key in Google AI Studio and create a replacement in Vercel. Adding `.env` to `.gitignore` prevents future commits but does not invalidate a key already present in repository history.
+
 ⚠️ **GitHub Pages is FREE but STATIC only** - Use the Vercel setup when the frontend and backend should share one deployment
 
 ⚠️ **Render/Railway FREE tiers**:
